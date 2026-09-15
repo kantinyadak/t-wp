@@ -111,7 +111,9 @@ async function callGoogleTranslate(text: string): Promise<string> {
 }
 
 /**
- * Batch translates a list of PO entries with progress reporting
+ * Batch translates a list of PO entries with progress reporting and high-speed concurrent execution.
+ * Uses a worker pool to translate multiple entries in parallel (3-5x faster) while still
+ * streaming every completed row to the UI immediately for real-time review.
  */
 export async function batchTranslateEntries(
   entries: POEntry[],
@@ -123,67 +125,82 @@ export async function batchTranslateEntries(
 ): Promise<TranslateItemResult[]> {
   const results: TranslateItemResult[] = [];
   const total = entries.length;
+  if (total === 0) return results;
 
-  for (let i = 0; i < total; i++) {
-    if (shouldCancel && shouldCancel()) {
-      break;
-    }
+  let completedCount = 0;
+  let nextIndex = 0;
+  const concurrency = engine === 'gemini' ? 3 : 5;
 
-    const entry = entries[i];
-    onProgress(i, total, entry.msgid);
-
-    try {
-      // Translate singular msgid
-      const res = await translateSingleString(entry.msgid, glossary, engine);
-
-      // If plural exists, also translate plural
-      let pluralTranslation = '';
-      if (entry.msgid_plural) {
-        const pluralRes = await translateSingleString(entry.msgid_plural, glossary, engine);
-        pluralTranslation = pluralRes.finalTranslation;
+  async function worker() {
+    while (nextIndex < total) {
+      if (shouldCancel && shouldCancel()) {
+        break;
       }
+      const currentIndex = nextIndex++;
+      const entry = entries[currentIndex];
+      if (!entry) break;
 
-      const updatedMsgstr = entry.msgid_plural
-        ? [res.finalTranslation, pluralTranslation || res.finalTranslation]
-        : [res.finalTranslation];
+      onProgress(completedCount, total, entry.msgid);
 
-      const updatedEntry: POEntry = {
-        ...entry,
-        msgstr: updatedMsgstr,
-        isTranslated: true,
-        isFuzzy: false,
-        isApproved: true,
-        rawGoogleTranslate: res.rawTranslation,
-        matchedTerms: res.appliedTerms.map(t => ({ en: t.en, fa: t.approvedFa })),
-      };
+      try {
+        // Translate singular msgid
+        const res = await translateSingleString(entry.msgid, glossary, engine);
 
-      const itemResult: TranslateItemResult = {
-        entry: updatedEntry,
-        rawGoogleTranslate: res.rawTranslation,
-        finalTranslation: res.finalTranslation,
-        appliedTerms: res.appliedTerms,
-      };
+        // If plural exists, also translate plural
+        let pluralTranslation = '';
+        if (entry.msgid_plural) {
+          const pluralRes = await translateSingleString(entry.msgid_plural, glossary, engine);
+          pluralTranslation = pluralRes.finalTranslation;
+        }
 
-      results.push(itemResult);
+        const updatedMsgstr = entry.msgid_plural
+          ? [res.finalTranslation, pluralTranslation || res.finalTranslation]
+          : [res.finalTranslation];
 
-      // Immediately notify listener so the row appears translated and can be reviewed in real-time
-      if (onEntryTranslated) {
-        onEntryTranslated(itemResult);
+        const updatedEntry: POEntry = {
+          ...entry,
+          msgstr: updatedMsgstr,
+          isTranslated: true,
+          isFuzzy: false,
+          isApproved: true,
+          rawGoogleTranslate: res.rawTranslation,
+          matchedTerms: res.appliedTerms.map(t => ({ en: t.en, fa: t.approvedFa })),
+        };
+
+        const itemResult: TranslateItemResult = {
+          entry: updatedEntry,
+          rawGoogleTranslate: res.rawTranslation,
+          finalTranslation: res.finalTranslation,
+          appliedTerms: res.appliedTerms,
+        };
+
+        results.push(itemResult);
+
+        // Immediately notify listener so the row appears translated in the UI in real-time
+        if (onEntryTranslated) {
+          onEntryTranslated(itemResult);
+        }
+      } catch (err) {
+        console.error(`Error translating entry "${entry.msgid}":`, err);
+        results.push({
+          entry,
+          rawGoogleTranslate: '',
+          finalTranslation: entry.msgstr[0] || '',
+          appliedTerms: [],
+        });
+      } finally {
+        completedCount++;
+        onProgress(completedCount, total, entry.msgid);
       }
-    } catch (err) {
-      console.error(`Error translating entry "${entry.msgid}":`, err);
-      // Keep entry as is but continue batch
-      results.push({
-        entry,
-        rawGoogleTranslate: '',
-        finalTranslation: entry.msgstr[0] || '',
-        appliedTerms: [],
-      });
     }
-
-    // Small courteous delay between requests to prevent network rate limits
-    await new Promise(r => setTimeout(r, 80));
   }
+
+  // Launch parallel workers
+  const workerPromises = Array.from(
+    { length: Math.min(concurrency, total) },
+    () => worker()
+  );
+  await Promise.all(workerPromises);
 
   onProgress(total, total, 'تکمیل شد');
   return results;

@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Cloud,
+  Eye,
 } from 'lucide-react';
 import { TranslationEngine } from '../types';
 
@@ -41,6 +42,7 @@ interface BatchToolbarProps {
     currentText: string;
   };
   onCancelTranslation?: () => void;
+  onSwitchFilter?: (filter: 'all' | 'untranslated' | 'translated' | 'recent') => void;
 }
 
 export const BatchToolbar: React.FC<BatchToolbarProps> = ({
@@ -63,6 +65,7 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
   isBackgroundRunning = false,
   currentProgress,
   onCancelTranslation,
+  onSwitchFilter,
 }) => {
   const formatTime = (ts: number | null | undefined) => {
     if (!ts) return null;
@@ -231,8 +234,8 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="w-32 bg-indigo-200 h-2 rounded-full overflow-hidden shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
+              <div className="w-28 sm:w-32 bg-indigo-200 h-2 rounded-full overflow-hidden shrink-0">
                 <div
                   className="bg-indigo-600 h-full rounded-full transition-all duration-150"
                   style={{
@@ -240,6 +243,17 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
                   }}
                 />
               </div>
+
+              {onSwitchFilter && currentProgress.completed > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onSwitchFilter('recent')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs transition-colors shrink-0 shadow-xs"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>بازبینی موارد ترجمه‌شده ({currentProgress.completed.toLocaleString('fa-IR')})</span>
+                </button>
+              )}
 
               {onCancelTranslation && (
                 <button

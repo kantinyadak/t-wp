@@ -208,6 +208,7 @@ export default function App() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [recentlyTranslatedIds, setRecentlyTranslatedIds] = useState<Set<string>>(new Set());
 
   // 8. Modals
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
@@ -491,6 +492,15 @@ export default function App() {
         };
       });
 
+      // Track newly applied background translations for instant review
+      setRecentlyTranslatedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of Object.keys(resultsMap)) {
+          next.add(id);
+        }
+        return next;
+      });
+
       if (!isIntermediateSync) {
         if (data.status === 'completed' || data.status === 'cancelled') {
           // Clear the finished job on server
@@ -629,6 +639,7 @@ export default function App() {
               e.id === itemResult.entry.id && !e.isUserEdited ? itemResult.entry : e
             ),
           }));
+          setRecentlyTranslatedIds((prev) => new Set(prev).add(itemResult.entry.id));
         }
       );
 
@@ -871,6 +882,7 @@ export default function App() {
       const isPersian = entry.isTranslated && isStringTranslatedToPersian(entry.msgid, entry.msgstr);
       if (filter === 'untranslated' && isPersian) return false;
       if (filter === 'translated' && !isPersian) return false;
+      if (filter === 'recent' && !recentlyTranslatedIds.has(entry.id)) return false;
       if (filter === 'plural' && !entry.msgid_plural) return false;
       if (filter === 'glossary') {
         const matches = findGlossaryMatches(entry.msgid, glossary);
@@ -889,7 +901,7 @@ export default function App() {
 
       return true;
     });
-  }, [poFile.entries, filter, searchQuery, glossary]);
+  }, [poFile.entries, filter, searchQuery, glossary, recentlyTranslatedIds]);
 
   // Select all visible
   const handleSelectAllVisible = () => {
@@ -974,6 +986,7 @@ export default function App() {
             onSearchChange={setSearchQuery}
             selectedCount={selectedIds.size}
             matchedCount={visibleEntries.length}
+            recentCount={recentlyTranslatedIds.size}
           />
 
           {/* Batch Actions Toolbar */}
@@ -999,6 +1012,7 @@ export default function App() {
             onCancelTranslation={() => {
               cancelTranslationRef.current = true;
             }}
+            onSwitchFilter={setFilter}
           />
 
           {/* Main PO Table */}
@@ -1012,6 +1026,7 @@ export default function App() {
                 onUpdateTranslation={handleUpdateTranslation}
                 onTranslateRow={handleTranslateRow}
                 isTranslatingRowId={translatingRowId}
+                recentIds={recentlyTranslatedIds}
               />
             </div>
           </main>

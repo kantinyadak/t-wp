@@ -33,12 +33,10 @@ app.get('/api/health', (req, res) => {
 const translationCache = new Map<string, string>();
 
 /**
- * Robust multi-tier translation helper with 5 fallback mechanisms:
- * 1. Google Chrome Extension dict client (Fast & Free)
- * 2. Google GTX public client
- * 3. Google WebApp client
- * 4. MyMemory Translation API
- * 5. Gemini AI server-side fallback
+ * High-speed multi-tier translation helper:
+ * 1. Google Chrome Extension dict client (Ultra-fast ~100ms & Free)
+ * 2. Google WebApp client
+ * 3. Gemini AI server-side fallback
  */
 async function translateFreeGoogle(text: string): Promise<string> {
   const trimmed = text.trim();
@@ -48,12 +46,9 @@ async function translateFreeGoogle(text: string): Promise<string> {
     return translationCache.get(trimmed)!;
   }
 
-  const hasPersian = (s: string) => /[\u0600-\u06FF]/.test(s);
-  const hasLatin = (s: string) => /[a-zA-Z]{2,}/.test(s);
-
   let translated = '';
 
-  // Method 1: clients5.google.com (Chrome Extension client - fast & 100% free)
+  // Method 1: clients5.google.com (Chrome Extension client - ultra fast ~100ms)
   try {
     const url1 = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=en&tl=fa&q=${encodeURIComponent(trimmed)}`;
     const r1 = await fetch(url1, {
@@ -61,48 +56,20 @@ async function translateFreeGoogle(text: string): Promise<string> {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': '*/*',
       },
+      signal: AbortSignal.timeout(2200),
     });
     if (r1.ok) {
       const d1 = await r1.json();
       const cand = Array.isArray(d1) && typeof d1[0] === 'string' ? d1[0] : (typeof d1 === 'string' ? d1 : '');
-      if (cand && (!hasLatin(trimmed) || hasPersian(cand))) {
-        translated = cand;
+      if (cand && cand.trim().length > 0) {
+        translated = cand.trim();
       }
     }
   } catch (e) {
     // Continue to fallback
   }
 
-  // Method 2: translate.googleapis.com (GTX client - free public translator)
-  if (!translated) {
-    try {
-      const url2 = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=fa&dt=t&q=${encodeURIComponent(trimmed)}`;
-      const r2 = await fetch(url2, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          'Accept': '*/*',
-        },
-      });
-      if (r2.ok) {
-        const d2 = await r2.json();
-        if (Array.isArray(d2) && Array.isArray(d2[0])) {
-          let pieceStr = '';
-          for (const piece of d2[0]) {
-            if (piece && typeof piece[0] === 'string') {
-              pieceStr += piece[0];
-            }
-          }
-          if (pieceStr && (!hasLatin(trimmed) || hasPersian(pieceStr))) {
-            translated = pieceStr;
-          }
-        }
-      }
-    } catch (e) {
-      // Continue to fallback
-    }
-  }
-
-  // Method 3: Google Web App endpoint
+  // Method 2: Google Web App endpoint (~300ms)
   if (!translated) {
     try {
       const url3 = `https://translate.google.com/translate_a/single?client=webapp&sl=en&tl=fa&dt=t&q=${encodeURIComponent(trimmed)}`;
@@ -111,6 +78,7 @@ async function translateFreeGoogle(text: string): Promise<string> {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': '*/*',
         },
+        signal: AbortSignal.timeout(2500),
       });
       if (r3.ok) {
         const d3 = await r3.json();
@@ -121,8 +89,8 @@ async function translateFreeGoogle(text: string): Promise<string> {
               pieceStr += piece[0];
             }
           }
-          if (pieceStr && (!hasLatin(trimmed) || hasPersian(pieceStr))) {
-            translated = pieceStr;
+          if (pieceStr && pieceStr.trim().length > 0) {
+            translated = pieceStr.trim();
           }
         }
       }
@@ -131,24 +99,7 @@ async function translateFreeGoogle(text: string): Promise<string> {
     }
   }
 
-  // Method 4: MyMemory Translation API
-  if (!translated) {
-    try {
-      const url4 = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=en|fa`;
-      const r4 = await fetch(url4, { headers: { 'Accept': 'application/json' } });
-      if (r4.ok) {
-        const d4 = await r4.json();
-        const cand = d4?.responseData?.translatedText;
-        if (cand && typeof cand === 'string' && (!hasLatin(trimmed) || hasPersian(cand))) {
-          translated = cand;
-        }
-      }
-    } catch (e) {
-      // Continue to fallback
-    }
-  }
-
-  // Method 5: Gemini AI fallback (Server-side)
+  // Method 3: Gemini AI fallback (Server-side)
   if (!translated && process.env.GEMINI_API_KEY) {
     try {
       const ai = getGemini();
@@ -158,7 +109,7 @@ async function translateFreeGoogle(text: string): Promise<string> {
         ''
       );
       const cand = resp.text?.trim() || '';
-      if (cand && (!hasLatin(trimmed) || hasPersian(cand))) {
+      if (cand) {
         translated = cand;
       }
     } catch (e) {
@@ -210,8 +161,8 @@ app.post('/api/translate-google', async (req, res) => {
 
     const translations: string[] = [];
 
-    // Process in small batches of 5 to avoid connection flooding
-    const chunkSize = 5;
+    // Process in batches of 10 for rapid throughput
+    const chunkSize = 10;
     for (let i = 0; i < inputTexts.length; i += chunkSize) {
       const chunk = inputTexts.slice(i, i + chunkSize);
       const chunkResults = await Promise.all(
@@ -220,8 +171,7 @@ app.post('/api/translate-google', async (req, res) => {
       translations.push(...chunkResults);
 
       if (i + chunkSize < inputTexts.length) {
-        // Micro-delay between batches
-        await new Promise((resolve) => setTimeout(resolve, 80));
+        await new Promise((resolve) => setTimeout(resolve, 15));
       }
     }
 

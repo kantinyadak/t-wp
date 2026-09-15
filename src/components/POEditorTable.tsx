@@ -22,6 +22,7 @@ interface POEditorTableProps {
   onUpdateTranslation: (id: string, newMsgstr: string[], isApproved?: boolean) => void;
   onTranslateRow: (entry: POEntry) => Promise<void>;
   isTranslatingRowId: string | null;
+  recentIds?: Set<string>;
 }
 
 export const POEditorTable: React.FC<POEditorTableProps> = ({
@@ -32,6 +33,7 @@ export const POEditorTable: React.FC<POEditorTableProps> = ({
   onUpdateTranslation,
   onTranslateRow,
   isTranslatingRowId,
+  recentIds,
 }) => {
   const [expandedDiffId, setExpandedDiffId] = useState<string | null>(null);
 
@@ -95,6 +97,12 @@ export const POEditorTable: React.FC<POEditorTableProps> = ({
                 {/* Status Badge */}
                 <td className="py-3.5 px-3 text-center align-top">
                   <div className="flex flex-col items-center gap-1 mt-0.5">
+                    {recentIds?.has(entry.id) && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300 animate-pulse">
+                        ✨ آماده بازبینی
+                      </span>
+                    )}
+
                     {entry.isTranslated && isStringTranslatedToPersian(entry.msgid, entry.msgstr) ? (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
                         ترجمه شده

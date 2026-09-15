@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Search, CheckCircle2, Clock, BookOpen, Layers, X } from 'lucide-react';
+import { Search, CheckCircle2, Clock, BookOpen, Layers, Sparkles, X } from 'lucide-react';
 import { TranslationStats } from '../types';
 
-export type FilterType = 'all' | 'untranslated' | 'translated' | 'glossary' | 'plural';
+export type FilterType = 'all' | 'untranslated' | 'translated' | 'recent' | 'glossary' | 'plural';
 
 interface StatsBarProps {
   stats: TranslationStats;
@@ -13,6 +13,7 @@ interface StatsBarProps {
   onSearchChange: (q: string) => void;
   selectedCount: number;
   matchedCount?: number;
+  recentCount?: number;
 }
 
 export const StatsBar: React.FC<StatsBarProps> = ({
@@ -24,6 +25,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({
   onSearchChange,
   selectedCount,
   matchedCount,
+  recentCount = 0,
 }) => {
   const percent = stats.total > 0 ? Math.round((stats.translated / stats.total) * 100) : 0;
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +150,22 @@ export const StatsBar: React.FC<StatsBarProps> = ({
             >
               ترجمه شده ({stats.translated.toLocaleString('fa-IR')})
             </button>
+
+            {recentCount > 0 && (
+              <button
+                id="filter-recent-btn"
+                type="button"
+                onClick={() => onFilterChange('recent')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap ${
+                  filter === 'recent'
+                    ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-400'
+                    : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-200'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+                <span>تازه ترجمه‌شده / آماده بازبینی ({recentCount.toLocaleString('fa-IR')})</span>
+              </button>
+            )}
 
             <button
               id="filter-glossary-btn"
