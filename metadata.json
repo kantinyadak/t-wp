@@ -1,0 +1,6 @@
+{
+  "name": "مترجم هوشمند PO و MO",
+  "description": "سیستم پیشرفته ترجمه فایل‌های PO و MO با هماهنگ‌سازی گوگل شیت و اولویت مطلق واژگان مصوب",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
