@@ -21,7 +21,7 @@ import {
 } from './types';
 import { INITIAL_GLOSSARY, parseGlossaryCsv } from './data/defaultGlossary';
 import { SAMPLE_WP_PO_CONTENT } from './data/samplePo';
-import { parsePO, generatePO } from './utils/poParser';
+import { parsePO, generatePO, isStringTranslatedToPersian } from './utils/poParser';
 import { compileMO, parseMO } from './utils/moCompiler';
 import {
   translateSingleString,
@@ -409,9 +409,11 @@ export default function App() {
 
   // Start background translation job in server (runs even if tab is closed or offline)
   const handleStartBackgroundJob = async () => {
-    const untranslated = poFile.entries.filter((e) => !e.msgstr || e.msgstr.every((s) => !s || !s.trim()));
+    const untranslated = poFile.entries.filter(
+      (e) => !e.isTranslated || !isStringTranslatedToPersian(e.msgid, e.msgstr)
+    );
     if (untranslated.length === 0) {
-      alert('تمام سطرها از قبل دارای ترجمه هستند.');
+      alert('تمام سطرها از قبل دارای ترجمه فارسی معتبر هستند.');
       return;
     }
 
@@ -594,7 +596,9 @@ export default function App() {
 
   // Translate all untranslated entries
   const handleTranslateAllUntranslated = async () => {
-    const untranslated = poFile.entries.filter((e) => !e.isTranslated);
+    const untranslated = poFile.entries.filter(
+      (e) => !e.isTranslated || !isStringTranslatedToPersian(e.msgid, e.msgstr)
+    );
     if (untranslated.length === 0) return;
 
     cancelTranslationRef.current = false;
@@ -837,7 +841,8 @@ export default function App() {
     let fuzzy = 0;
 
     for (const e of poFile.entries) {
-      if (e.isTranslated) translated++;
+      const isPersianTranslated = e.isTranslated && isStringTranslatedToPersian(e.msgid, e.msgstr);
+      if (isPersianTranslated) translated++;
       else untranslated++;
 
       if (e.isFuzzy) fuzzy++;
@@ -863,8 +868,9 @@ export default function App() {
   const visibleEntries = useMemo(() => {
     return poFile.entries.filter((entry) => {
       // 1. Tab filter
-      if (filter === 'untranslated' && entry.isTranslated) return false;
-      if (filter === 'translated' && !entry.isTranslated) return false;
+      const isPersian = entry.isTranslated && isStringTranslatedToPersian(entry.msgid, entry.msgstr);
+      if (filter === 'untranslated' && isPersian) return false;
+      if (filter === 'translated' && !isPersian) return false;
       if (filter === 'plural' && !entry.msgid_plural) return false;
       if (filter === 'glossary') {
         const matches = findGlossaryMatches(entry.msgid, glossary);

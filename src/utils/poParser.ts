@@ -25,6 +25,31 @@ export function escapePOString(str: string): string {
 }
 
 /**
+ * Checks if a string has a genuine Persian translation rather than
+ * an empty string, or an untranslated English string identical to msgid
+ */
+export function isStringTranslatedToPersian(msgid: string, msgstr: string[]): boolean {
+  if (!msgstr || msgstr.length === 0) return false;
+  const first = (msgstr[0] || '').trim();
+  if (!first) return false;
+
+  const cleanMsgid = (msgid || '').trim();
+  if (!cleanMsgid) return true; // empty msgid is PO header
+
+  // If translation is identical to English source
+  if (first.toLowerCase() === cleanMsgid.toLowerCase()) return false;
+
+  // If source contains English words and translation has zero Persian/Arabic characters
+  const hasLatin = /[a-zA-Z]{2,}/.test(cleanMsgid);
+  const hasPersian = /[\u0600-\u06FF]/.test(first);
+  if (hasLatin && !hasPersian) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Formats a string as PO quoted lines
  */
 export function formatPOString(label: string, text: string): string {
@@ -76,7 +101,7 @@ export function parsePO(content: string, fileName: string = 'messages.po'): POFi
         headerString = currentMsgstr[0] || '';
         isHeaderParsed = true;
       } else {
-        const isTranslated = currentMsgstr.some(s => s && s.trim().length > 0);
+        const isTranslated = isStringTranslatedToPersian(currentMsgid, currentMsgstr);
         const isFuzzy = currentFlags.some(f => f.toLowerCase().includes('fuzzy'));
         entries.push({
           id: `entry-${entryIndex++}`,

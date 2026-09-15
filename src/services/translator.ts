@@ -66,6 +66,10 @@ export async function translateSingleString(
     rawTranslatedMasked = await callGoogleTranslate(maskedText);
   }
 
+  if (!rawTranslatedMasked || !rawTranslatedMasked.trim()) {
+    throw new Error('پاسخ معتبری از موتور ترجمه دریافت نشد.');
+  }
+
   // 4. Restore placeholders
   const rawTranslation = restorePlaceholders(rawTranslatedMasked, placeholders);
 
@@ -98,9 +102,12 @@ async function callGoogleTranslate(text: string): Promise<string> {
 
   const data = await response.json();
   if (data.translations && data.translations[0]) {
-    return data.translations[0];
+    const candidate = data.translations[0];
+    if (candidate && candidate.trim()) {
+      return candidate;
+    }
   }
-  return text;
+  throw new Error('عدم دریافت ترجمه از سرور گوگل ترنسلیت');
 }
 
 /**

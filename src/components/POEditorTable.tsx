@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { GlossaryTerm, POEntry } from '../types';
 import { findGlossaryMatches } from '../utils/glossaryEngine';
+import { isStringTranslatedToPersian } from '../utils/poParser';
 
 interface POEditorTableProps {
   entries: POEntry[];
@@ -94,13 +95,13 @@ export const POEditorTable: React.FC<POEditorTableProps> = ({
                 {/* Status Badge */}
                 <td className="py-3.5 px-3 text-center align-top">
                   <div className="flex flex-col items-center gap-1 mt-0.5">
-                    {entry.isTranslated ? (
+                    {entry.isTranslated && isStringTranslatedToPersian(entry.msgid, entry.msgstr) ? (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
                         ترجمه شده
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                        بدون ترجمه
+                        {entry.msgstr[0]?.trim() ? 'متن انگلیسی (نیاز به ترجمه)' : 'بدون ترجمه'}
                       </span>
                     )}
 

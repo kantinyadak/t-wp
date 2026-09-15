@@ -33,7 +33,12 @@ app.get('/api/health', (req, res) => {
 const translationCache = new Map<string, string>();
 
 /**
- * Free Google Translate helper without any API key or subscription
+ * Robust multi-tier translation helper with 5 fallback mechanisms:
+ * 1. Google Chrome Extension dict client (Fast & Free)
+ * 2. Google GTX public client
+ * 3. Google WebApp client
+ * 4. MyMemory Translation API
+ * 5. Gemini AI server-side fallback
  */
 async function translateFreeGoogle(text: string): Promise<string> {
   const trimmed = text.trim();
@@ -42,6 +47,9 @@ async function translateFreeGoogle(text: string): Promise<string> {
   if (translationCache.has(trimmed)) {
     return translationCache.get(trimmed)!;
   }
+
+  const hasPersian = (s: string) => /[\u0600-\u06FF]/.test(s);
+  const hasLatin = (s: string) => /[a-zA-Z]{2,}/.test(s);
 
   let translated = '';
 
@@ -56,10 +64,9 @@ async function translateFreeGoogle(text: string): Promise<string> {
     });
     if (r1.ok) {
       const d1 = await r1.json();
-      if (Array.isArray(d1) && typeof d1[0] === 'string') {
-        translated = d1[0];
-      } else if (typeof d1 === 'string') {
-        translated = d1;
+      const cand = Array.isArray(d1) && typeof d1[0] === 'string' ? d1[0] : (typeof d1 === 'string' ? d1 : '');
+      if (cand && (!hasLatin(trimmed) || hasPersian(cand))) {
+        translated = cand;
       }
     }
   } catch (e) {
@@ -79,10 +86,14 @@ async function translateFreeGoogle(text: string): Promise<string> {
       if (r2.ok) {
         const d2 = await r2.json();
         if (Array.isArray(d2) && Array.isArray(d2[0])) {
+          let pieceStr = '';
           for (const piece of d2[0]) {
             if (piece && typeof piece[0] === 'string') {
-              translated += piece[0];
+              pieceStr += piece[0];
             }
+          }
+          if (pieceStr && (!hasLatin(trimmed) || hasPersian(pieceStr))) {
+            translated = pieceStr;
           }
         }
       }
@@ -104,15 +115,54 @@ async function translateFreeGoogle(text: string): Promise<string> {
       if (r3.ok) {
         const d3 = await r3.json();
         if (Array.isArray(d3) && Array.isArray(d3[0])) {
+          let pieceStr = '';
           for (const piece of d3[0]) {
             if (piece && typeof piece[0] === 'string') {
-              translated += piece[0];
+              pieceStr += piece[0];
             }
+          }
+          if (pieceStr && (!hasLatin(trimmed) || hasPersian(pieceStr))) {
+            translated = pieceStr;
           }
         }
       }
     } catch (e) {
-      // Fail gracefully
+      // Continue to fallback
+    }
+  }
+
+  // Method 4: MyMemory Translation API
+  if (!translated) {
+    try {
+      const url4 = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=en|fa`;
+      const r4 = await fetch(url4, { headers: { 'Accept': 'application/json' } });
+      if (r4.ok) {
+        const d4 = await r4.json();
+        const cand = d4?.responseData?.translatedText;
+        if (cand && typeof cand === 'string' && (!hasLatin(trimmed) || hasPersian(cand))) {
+          translated = cand;
+        }
+      }
+    } catch (e) {
+      // Continue to fallback
+    }
+  }
+
+  // Method 5: Gemini AI fallback (Server-side)
+  if (!translated && process.env.GEMINI_API_KEY) {
+    try {
+      const ai = getGemini();
+      const resp = await generateWithGeminiFallback(
+        ai,
+        `Translate this single software UI string accurately to Persian (Farsi). Do not add explanations or notes. Output ONLY the translated Persian text:\n${trimmed}`,
+        ''
+      );
+      const cand = resp.text?.trim() || '';
+      if (cand && (!hasLatin(trimmed) || hasPersian(cand))) {
+        translated = cand;
+      }
+    } catch (e) {
+      console.warn('Gemini fallback in translateFreeGoogle failed:', e);
     }
   }
 
@@ -121,7 +171,29 @@ async function translateFreeGoogle(text: string): Promise<string> {
     return translated;
   }
 
-  return trimmed;
+  return '';
+}
+
+/**
+ * Helper to call Gemini with multiple fallback models to prevent 503 errors
+ */
+async function generateWithGeminiFallback(ai: GoogleGenAI, prompt: string, mimeType: string = 'application/json') {
+  const models = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.8-flash'];
+  let lastErr = null;
+  for (const model of models) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: mimeType ? { responseMimeType: mimeType } : undefined,
+      });
+      return response;
+    } catch (err: any) {
+      lastErr = err;
+      console.warn(`Gemini model ${model} failed (${err.message}), trying next model...`);
+    }
+  }
+  throw lastErr;
 }
 
 /**
@@ -198,13 +270,7 @@ ${JSON.stringify(inputTexts)}
 
 Output ONLY the JSON array of translated strings without code blocks:`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+    const response = await generateWithGeminiFallback(ai, prompt, 'application/json');
 
     const responseText = response.text || '[]';
     let translations: string[] = [];
@@ -621,7 +687,29 @@ async function runServerBackgroundTranslation(
     try {
       // 1. Singular translation
       const { masked, placeholders } = maskPlaceholdersServer(entry.msgid);
-      const rawTrans = await translateFreeGoogle(masked);
+      let rawTrans = '';
+      if (engine === 'gemini' && process.env.GEMINI_API_KEY) {
+        try {
+          const ai = getGemini();
+          const resp = await generateWithGeminiFallback(
+            ai,
+            `Translate this software interface string accurately to Persian (Farsi). Output ONLY the translated Persian text:\n${masked}`,
+            ''
+          );
+          rawTrans = resp.text?.trim() || '';
+        } catch (e) {
+          rawTrans = await translateFreeGoogle(masked);
+        }
+      } else {
+        rawTrans = await translateFreeGoogle(masked);
+      }
+
+      if (!rawTrans) {
+        // Skip entry if translation could not be obtained
+        job.completed = i + 1;
+        continue;
+      }
+
       const unmasked = unmaskPlaceholdersServer(rawTrans, placeholders);
       const { finalFa, applied } = applyServerGlossary(entry.msgid, unmasked, glossary);
 
@@ -632,12 +720,30 @@ async function runServerBackgroundTranslation(
       let pluralApplied: any[] = [];
       if (entry.msgid_plural) {
         const pMask = maskPlaceholdersServer(entry.msgid_plural);
-        const pRaw = await translateFreeGoogle(pMask.masked);
-        const pUnmasked = unmaskPlaceholdersServer(pRaw, pMask.placeholders);
-        const pProcessed = applyServerGlossary(entry.msgid_plural, pUnmasked, glossary);
-        pluralTrans = pProcessed.finalFa;
-        pluralApplied = pProcessed.applied;
-        totalAppliedTerms += pluralApplied.length;
+        let pRaw = '';
+        if (engine === 'gemini' && process.env.GEMINI_API_KEY) {
+          try {
+            const ai = getGemini();
+            const resp = await generateWithGeminiFallback(
+              ai,
+              `Translate this plural software interface string to Persian (Farsi). Output ONLY the translated Persian text:\n${pMask.masked}`,
+              ''
+            );
+            pRaw = resp.text?.trim() || '';
+          } catch (e) {
+            pRaw = await translateFreeGoogle(pMask.masked);
+          }
+        } else {
+          pRaw = await translateFreeGoogle(pMask.masked);
+        }
+
+        if (pRaw) {
+          const pUnmasked = unmaskPlaceholdersServer(pRaw, pMask.placeholders);
+          const pProcessed = applyServerGlossary(entry.msgid_plural, pUnmasked, glossary);
+          pluralTrans = pProcessed.finalFa;
+          pluralApplied = pProcessed.applied;
+          totalAppliedTerms += pluralApplied.length;
+        }
       }
 
       job.results[entry.id] = {
