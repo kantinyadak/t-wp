@@ -312,9 +312,85 @@ let currentBackgroundJob: BackgroundJob | null = null;
 let backgroundJobCancelRequested = false;
 
 const COMMON_SERVER_MISTRANSLATIONS: Record<string, string[]> = {
+  import: [
+    'واردات',
+    'وارد کردن',
+    'وارد نمایید',
+    'وارد کنید',
+    'وارد شدن',
+    'وارد سازی',
+    'واردسازی',
+    'ایمپورت',
+    'وارد',
+  ],
+  imports: [
+    'واردات',
+    'درون ریزی ها',
+    'درون‌ریزی‌ها',
+  ],
+  imported: [
+    'وارد شده',
+    'وارد گردیده',
+    'واردات شده',
+    'وارد گشته',
+  ],
+  importing: [
+    'در حال وارد کردن',
+    'وارد کردن',
+    'وارد سازی',
+    'واردسازی',
+  ],
+  importer: [
+    'وارد کننده',
+    'واردکننده',
+    'ایمپورتر',
+  ],
+  importers: [
+    'وارد کنندگان',
+    'واردکنندگان',
+    'وارد کننده‌ها',
+  ],
+  export: [
+    'صادرات',
+    'صادر کردن',
+    'صادر نمایید',
+    'صادر کنید',
+    'صادر شدن',
+    'صادر سازی',
+    'صادرسازی',
+    'اکسپورت',
+    'صادر',
+  ],
+  exports: [
+    'صادرات',
+    'برون ریزی ها',
+    'برون‌بری‌ها',
+    'برون بری ها',
+  ],
+  exported: [
+    'صادر شده',
+    'صادر گردیده',
+    'صادرات شده',
+  ],
+  exporting: [
+    'در حال صادر کردن',
+    'صادر کردن',
+    'صادر سازی',
+    'صادرسازی',
+  ],
+  exporter: [
+    'صادر کننده',
+    'صادرکننده',
+    'اکسپورتر',
+  ],
+  exporters: [
+    'صادر کنندگان',
+    'صادرکنندگان',
+    'صادر کننده‌ها',
+  ],
   admin: ['مدیریت', 'ادمین', 'مدیران', 'ادمین‌ها'],
-  administration: ['ادمین', 'مدیر'],
-  administrator: ['ادمین', 'مدیریت کل', 'مدیرسیستم'],
+  administration: ['ادمین', 'مدیر', 'مدیریت'],
+  administrator: ['ادمین', 'مدیریت کل', 'مدیرسیستم', 'مدیر کل'],
   comment: ['نظر', 'کامنت', 'دیدگاه'],
   comments: ['نظرات', 'کامنت‌ها', 'دیدگاه‌ها'],
   plugin: ['پلاگین', 'پلاگین‌ها', 'افزونه'],
@@ -323,14 +399,17 @@ const COMMON_SERVER_MISTRANSLATIONS: Record<string, string[]> = {
   themes: ['تم‌ها', 'قالب‌ها', 'پوسته‌ها'],
   post: ['پست', 'مطلب', 'ارسال', 'نوشته'],
   posts: ['پست‌ها', 'مطالب', 'ارسال‌ها', 'نوشته‌ها'],
-  dashboard: ['داشبورد', 'پیشخوان'],
-  trash: ['سطل زباله', 'سطل آشغال', 'زباله‌دان'],
+  page: ['صفحه'],
+  pages: ['صفحات', 'صفحه‌ها'],
+  dashboard: ['داشبورد', 'پیشخوان', 'میزکار'],
+  trash: ['سطل زباله', 'سطل آشغال', 'زباله‌دان', 'آشغال'],
   tag: ['تگ', 'برچسب'],
   tags: ['تگ‌ها', 'برچسب‌ها'],
-  category: ['کتگوری', 'دسته‌بندی', 'دسته'],
-  categories: ['دسته‌بندی‌ها', 'کتگوری‌ها', 'دسته‌ها'],
-  customizer: ['شخصی‌ساز', 'کاستومایزر', 'سفارشی‌ساز'],
-  permalink: ['لینک ثابت', 'پیوند دائمی', 'پیوند یکتا'],
+  category: ['کتگوری', 'دسته‌بندی', 'دسته بندی', 'دسته'],
+  categories: ['دسته‌بندی‌ها', 'دسته بندی ها', 'کتگوری‌ها', 'دسته‌ها'],
+  customizer: ['شخصی‌ساز', 'شخصی ساز', 'کاستومایزر', 'سفارشی‌ساز', 'سفارشی ساز'],
+  customize: ['شخصی‌سازی', 'شخصی سازی', 'کاستومایز', 'سفارشی‌سازی', 'سفارشی سازی'],
+  permalink: ['لینک ثابت', 'پیوند دائمی', 'پیوند یکتا', 'پرملینک', 'پیوند ثابت'],
   media: ['چندرسانه‌ای', 'مدیا', 'رسانه'],
   widget: ['ویجت', 'ابزارک'],
   widgets: ['ویجت‌ها', 'ابزارک‌ها'],
@@ -338,14 +417,21 @@ const COMMON_SERVER_MISTRANSLATIONS: Record<string, string[]> = {
   footer: ['فوتر', 'پابرگ'],
   sidebar: ['سایدبار', 'نوار کناری'],
   feed: ['فید', 'خوراک'],
-  excerpt: ['خلاصه', 'چکیده'],
-  slug: ['اسلاگ', 'نامک'],
-  database: ['دیتابیس', 'پایگاه‌داده'],
-  upload: ['آپلود', 'ارسال', 'ارسال فایل'],
+  excerpt: ['خلاصه', 'برگزیده', 'گزیده', 'چکیده'],
+  slug: ['اسلاگ', 'حلزون', 'نامک'],
+  database: ['دیتابیس', 'بانک اطلاعاتی', 'پایگاه‌داده'],
+  upload: ['آپلود', 'ارسال', 'ارسال فایل', 'بارگذاری'],
   download: ['دانلود', 'دریافت'],
   settings: ['تنظیمات', 'پیکربندی'],
   preview: ['پیش نمایش', 'پیش‌نمایش'],
   spam: ['اسپم', 'جفنگ', 'هرزنامه'],
+  draft: ['پیشنویس', 'چرکنویس', 'پیش‌نویس'],
+  publish: ['پابلیش', 'منتشر کردن', 'انتشار'],
+  published: ['پابلیش شده', 'منتشر شده', 'انتشار یافته'],
+  user: ['یوزر', 'استفاده کننده', 'کاربر'],
+  users: ['یوزرها', 'کاربران', 'کاربرها'],
+  login: ['ورود به سیستم', 'لاگین', 'وارد شوید', 'ورود'],
+  logout: ['خروج از سیستم', 'لاگ اوت', 'خارج شوید', 'خروج'],
 };
 
 function maskPlaceholdersServer(text: string): { masked: string; placeholders: string[] } {
@@ -402,7 +488,8 @@ function applyServerGlossary(
     }
 
     const approvedFa = term.primaryFa.trim();
-    const approvedRegex = new RegExp(`(^|[\\s،.؛:؟!])(${approvedFa})([\\s،.؛:؟!]|$)`, 'u');
+    const normalizedApproved = approvedFa.replace(/[\u200c\s]+/g, '[\\u200c\\s]?');
+    const approvedRegex = new RegExp(`(^|[\\s،.؛:؟!])(${normalizedApproved})([\\s،.؛:؟!]|$)`, 'u');
     if (approvedRegex.test(finalFa)) {
       applied.push({ en: term.en, originalFa: approvedFa, approvedFa });
       continue;
@@ -412,7 +499,7 @@ function applyServerGlossary(
     const candidates = [
       ...(term.alternates || []),
       ...(COMMON_SERVER_MISTRANSLATIONS[termEnLower] || []),
-    ];
+    ].sort((a, b) => b.length - a.length);
 
     for (const cand of candidates) {
       if (!cand || cand === approvedFa) continue;
@@ -425,12 +512,86 @@ function applyServerGlossary(
       }
     }
 
-    if (!replaced && termEnLower === 'admin' && (finalFa.includes('مدیریت') || finalFa.includes('ادمین'))) {
-      finalFa = finalFa.replace(/مدیریت|ادمین/g, approvedFa);
-      if (/\bfor\b/i.test(sourceEn) && !finalFa.includes('برای')) {
-        finalFa = finalFa.replace(new RegExp(`(${approvedFa})\\s+`, 'u'), `$1 برای `);
+    if (!replaced) {
+      if (termEnLower === 'import') {
+        if (/وارد\s*کردن/u.test(finalFa)) {
+          finalFa = finalFa.replace(/وارد\s*کردن/gu, approvedFa);
+          applied.push({ en: term.en, originalFa: 'وارد کردن', approvedFa });
+          replaced = true;
+        } else if (/وارد\s*نمایید/u.test(finalFa)) {
+          finalFa = finalFa.replace(/وارد\s*نمایید/gu, `${approvedFa} نمایید`);
+          applied.push({ en: term.en, originalFa: 'وارد نمایید', approvedFa });
+          replaced = true;
+        } else if (/وارد\s*کنید/u.test(finalFa)) {
+          finalFa = finalFa.replace(/وارد\s*کنید/gu, `${approvedFa} کنید`);
+          applied.push({ en: term.en, originalFa: 'وارد کنید', approvedFa });
+          replaced = true;
+        } else if (/واردات/u.test(finalFa)) {
+          finalFa = finalFa.replace(/واردات/gu, approvedFa);
+          applied.push({ en: term.en, originalFa: 'واردات', approvedFa });
+          replaced = true;
+        } else if (/وارد\s*سازی/u.test(finalFa)) {
+          finalFa = finalFa.replace(/وارد\s*سازی/gu, approvedFa);
+          applied.push({ en: term.en, originalFa: 'واردسازی', approvedFa });
+          replaced = true;
+        } else if (/ایمپورت/u.test(finalFa)) {
+          finalFa = finalFa.replace(/ایمپورت/gu, approvedFa);
+          applied.push({ en: term.en, originalFa: 'ایمپورت', approvedFa });
+          replaced = true;
+        } else if (/(^|[\s،.؛:؟!])وارد([\s،.؛:؟!]|$)/u.test(finalFa)) {
+          finalFa = finalFa.replace(/(^|[\s،.؛:؟!])وارد([\s،.؛:؟!]|$)/u, `$1${approvedFa}$2`);
+          applied.push({ en: term.en, originalFa: 'وارد', approvedFa });
+          replaced = true;
+        }
+      } else if (termEnLower === 'export') {
+        if (/صادر\s*کردن/u.test(finalFa)) {
+          finalFa = finalFa.replace(/صادر\s*کردن/gu, approvedFa);
+          applied.push({ en: term.en, originalFa: 'صادر کردن', approvedFa });
+          replaced = true;
+        } else if (/صادر\s*نمایید/u.test(finalFa)) {
+          finalFa = finalFa.replace(/صادر\s*نمایید/gu, `${approvedFa} نمایید`);
+          applied.push({ en: term.en, originalFa: 'صادر نمایید', approvedFa });
+          replaced = true;
+        } else if (/صادر\s*کنید/u.test(finalFa)) {
+          finalFa = finalFa.replace(/صادر\s*کنید/gu, `${approvedFa} کنید`);
+          applied.push({ en: term.en, originalFa: 'صادر کنید', approvedFa });
+          replaced = true;
+        } else if (/صادرات/u.test(finalFa)) {
+          finalFa = finalFa.replace(/صادرات/gu, approvedFa);
+          applied.push({ en: term.en, originalFa: 'صادرات', approvedFa });
+          replaced = true;
+        } else if (/صادر\s*سازی/u.test(finalFa)) {
+          finalFa = finalFa.replace(/صادر\s*سازی/gu, approvedFa);
+          applied.push({ en: term.en, originalFa: 'صادرسازی', approvedFa });
+          replaced = true;
+        } else if (/اکسپورت/u.test(finalFa)) {
+          finalFa = finalFa.replace(/اکسپورت/gu, approvedFa);
+          applied.push({ en: term.en, originalFa: 'اکسپورت', approvedFa });
+          replaced = true;
+        }
+      } else if (termEnLower === 'importer' && (finalFa.includes('وارد کننده') || finalFa.includes('واردکننده'))) {
+        finalFa = finalFa.replace(/وارد\s*کننده/gu, approvedFa);
+        applied.push({ en: term.en, originalFa: 'واردکننده', approvedFa });
+        replaced = true;
+      } else if (termEnLower === 'exporter' && (finalFa.includes('صادر کننده') || finalFa.includes('صادرکننده'))) {
+        finalFa = finalFa.replace(/صادر\s*کننده/gu, approvedFa);
+        applied.push({ en: term.en, originalFa: 'صادرکننده', approvedFa });
+        replaced = true;
+      } else if (termEnLower === 'admin' && (finalFa.includes('مدیریت') || finalFa.includes('ادمین'))) {
+        finalFa = finalFa.replace(/مدیریت|ادمین/gu, approvedFa);
+        if (/\bfor\b/i.test(sourceEn) && !finalFa.includes('برای')) {
+          finalFa = finalFa.replace(new RegExp(`(${approvedFa})\\s+`, 'u'), `$1 برای `);
+        }
+        applied.push({ en: term.en, originalFa: 'مدیریت/ادمین', approvedFa });
+        replaced = true;
       }
-      applied.push({ en: term.en, originalFa: 'مدیریت/ادمین', approvedFa });
+    }
+
+    const strippedSource = sourceEn.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toLowerCase();
+    if (strippedSource === termEnLower) {
+      const trailingPunc = rawFa.match(/[:؛؟!.]+$/)?.[0] || (sourceEn.endsWith(':') ? ':' : '');
+      finalFa = approvedFa + trailingPunc;
+      applied.push({ en: term.en, originalFa: rawFa, approvedFa });
     }
   }
 

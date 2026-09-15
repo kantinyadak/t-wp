@@ -18,40 +18,126 @@ export function normalizePersian(text: string): string {
  * Common alternative mistranslations or loan words for WordPress terms in Google Translate
  */
 const COMMON_MISTRANSLATIONS: Record<string, string[]> = {
-  'admin': ['مدیریت', 'ادمین', 'مدیران', 'ادمین‌ها'],
-  'administration': ['ادمین', 'مدیر'],
-  'administrator': ['ادمین', 'مدیریت کل', 'مدیرسیستم'],
-  'comment': ['نظر', 'کامنت', 'دیدگاه'],
-  'comments': ['نظرات', 'کامنت‌ها', 'دیدگاه‌ها'],
-  'plugin': ['پلاگین', 'پلاگین‌ها', 'افزونه'],
-  'plugins': ['پلاگین‌ها', 'پلاگین', 'افزونه‌ها'],
-  'theme': ['تم', 'قالب', 'پوسته'],
-  'themes': ['تم‌ها', 'قالب‌ها', 'پوسته‌ها'],
-  'post': ['پست', 'مطلب', 'ارسال', 'نوشته'],
-  'posts': ['پست‌ها', 'مطالب', 'ارسال‌ها', 'نوشته‌ها'],
-  'dashboard': ['داشبورد', 'پیشخوان'],
-  'trash': ['سطل زباله', 'سطل آشغال', 'زباله‌دان'],
-  'tag': ['تگ', 'برچسب'],
-  'tags': ['تگ‌ها', 'برچسب‌ها'],
-  'category': ['کتگوری', 'دسته‌بندی', 'دسته'],
-  'categories': ['دسته‌بندی‌ها', 'کتگوری‌ها', 'دسته‌ها'],
-  'customizer': ['شخصی‌ساز', 'کاستومایزر', 'سفارشی‌ساز'],
-  'permalink': ['لینک ثابت', 'پیوند دائمی', 'پیوند یکتا'],
-  'media': ['چندرسانه‌ای', 'مدیا', 'رسانه'],
-  'widget': ['ویجت', 'ابزارک'],
-  'widgets': ['ویجت‌ها', 'ابزارک‌ها'],
-  'header': ['هدر', 'سربرگ'],
-  'footer': ['فوتر', 'پابرگ'],
-  'sidebar': ['سایدبار', 'نوار کناری'],
-  'feed': ['فید', 'خوراک'],
-  'excerpt': ['خلاصه', 'چکیده'],
-  'slug': ['اسلاگ', 'نامک'],
-  'database': ['دیتابیس', 'پایگاه‌داده'],
-  'upload': ['آپلود', 'ارسال', 'ارسال فایل'],
-  'download': ['دانلود', 'دریافت'],
-  'settings': ['تنظیمات', 'پیکربندی'],
-  'preview': ['پیش نمایش', 'پیش‌نمایش'],
-  'spam': ['اسپم', 'جفنگ', 'هرزنامه'],
+  import: [
+    'واردات',
+    'وارد کردن',
+    'وارد نمایید',
+    'وارد کنید',
+    'وارد شدن',
+    'وارد سازی',
+    'واردسازی',
+    'ایمپورت',
+    'وارد',
+  ],
+  imports: [
+    'واردات',
+    'درون ریزی ها',
+    'درون‌ریزی‌ها',
+  ],
+  imported: [
+    'وارد شده',
+    'وارد گردیده',
+    'واردات شده',
+    'وارد گشته',
+  ],
+  importing: [
+    'در حال وارد کردن',
+    'وارد کردن',
+    'وارد سازی',
+    'واردسازی',
+  ],
+  importer: [
+    'وارد کننده',
+    'واردکننده',
+    'ایمپورتر',
+  ],
+  importers: [
+    'وارد کنندگان',
+    'واردکنندگان',
+    'وارد کننده‌ها',
+  ],
+  export: [
+    'صادرات',
+    'صادر کردن',
+    'صادر نمایید',
+    'صادر کنید',
+    'صادر شدن',
+    'صادر سازی',
+    'صادرسازی',
+    'اکسپورت',
+    'صادر',
+  ],
+  exports: [
+    'صادرات',
+    'برون ریزی ها',
+    'برون‌بری‌ها',
+    'برون بری ها',
+  ],
+  exported: [
+    'صادر شده',
+    'صادر گردیده',
+    'صادرات شده',
+  ],
+  exporting: [
+    'در حال صادر کردن',
+    'صادر کردن',
+    'صادر سازی',
+    'صادرسازی',
+  ],
+  exporter: [
+    'صادر کننده',
+    'صادرکننده',
+    'اکسپورتر',
+  ],
+  exporters: [
+    'صادر کنندگان',
+    'صادرکنندگان',
+    'صادر کننده‌ها',
+  ],
+  admin: ['مدیریت', 'ادمین', 'مدیران', 'ادمین‌ها'],
+  administration: ['ادمین', 'مدیر', 'مدیریت'],
+  administrator: ['ادمین', 'مدیریت کل', 'مدیرسیستم', 'مدیر کل'],
+  comment: ['نظر', 'کامنت', 'دیدگاه'],
+  comments: ['نظرات', 'کامنت‌ها', 'دیدگاه‌ها'],
+  plugin: ['پلاگین', 'پلاگین‌ها', 'افزونه'],
+  plugins: ['پلاگین‌ها', 'پلاگین', 'افزونه‌ها'],
+  theme: ['تم', 'قالب', 'پوسته'],
+  themes: ['تم‌ها', 'قالب‌ها', 'پوسته‌ها'],
+  post: ['پست', 'مطلب', 'ارسال', 'نوشته'],
+  posts: ['پست‌ها', 'مطالب', 'ارسال‌ها', 'نوشته‌ها'],
+  page: ['صفحه'],
+  pages: ['صفحات', 'صفحه‌ها'],
+  dashboard: ['داشبورد', 'پیشخوان', 'میزکار'],
+  trash: ['سطل زباله', 'سطل آشغال', 'زباله‌دان', 'آشغال'],
+  tag: ['تگ', 'برچسب'],
+  tags: ['تگ‌ها', 'برچسب‌ها'],
+  category: ['کتگوری', 'دسته‌بندی', 'دسته بندی', 'دسته'],
+  categories: ['دسته‌بندی‌ها', 'دسته بندی ها', 'کتگوری‌ها', 'دسته‌ها'],
+  customizer: ['شخصی‌ساز', 'شخصی ساز', 'کاستومایزر', 'سفارشی‌ساز', 'سفارشی ساز'],
+  customize: ['شخصی‌سازی', 'شخصی سازی', 'کاستومایز', 'سفارشی‌سازی', 'سفارشی سازی'],
+  permalink: ['لینک ثابت', 'پیوند دائمی', 'پیوند یکتا', 'پرملینک', 'پیوند ثابت'],
+  media: ['چندرسانه‌ای', 'مدیا', 'رسانه'],
+  widget: ['ویجت', 'ابزارک'],
+  widgets: ['ویجت‌ها', 'ابزارک‌ها'],
+  header: ['هدر', 'سربرگ'],
+  footer: ['فوتر', 'پابرگ'],
+  sidebar: ['سایدبار', 'نوار کناری'],
+  feed: ['فید', 'خوراک'],
+  excerpt: ['خلاصه', 'برگزیده', 'گزیده', 'چکیده'],
+  slug: ['اسلاگ', 'حلزون', 'نامک'],
+  database: ['دیتابیس', 'بانک اطلاعاتی', 'پایگاه‌داده'],
+  upload: ['آپلود', 'ارسال', 'ارسال فایل', 'بارگذاری'],
+  download: ['دانلود', 'دریافت'],
+  settings: ['تنظیمات', 'پیکربندی'],
+  preview: ['پیش نمایش', 'پیش‌نمایش'],
+  spam: ['اسپم', 'جفنگ', 'هرزنامه'],
+  draft: ['پیشنویس', 'چرکنویس', 'پیش‌نویس'],
+  publish: ['پابلیش', 'منتشر کردن', 'انتشار'],
+  published: ['پابلیش شده', 'منتشر شده', 'انتشار یافته'],
+  user: ['یوزر', 'استفاده کننده', 'کاربر'],
+  users: ['یوزرها', 'کاربران', 'کاربرها'],
+  login: ['ورود به سیستم', 'لاگین', 'وارد شوید', 'ورود'],
+  logout: ['خروج از سیستم', 'لاگ اوت', 'خارج شوید', 'خروج'],
 };
 
 export interface MatchedTermInfo {
@@ -182,8 +268,9 @@ export function applyApprovedGlossary(
     const enKey = term.en.toLowerCase().trim();
     const approvedFa = term.primaryFa.trim();
 
-    // 1. Check if the approved term is already present as a whole word
-    const approvedRegex = new RegExp(`(^|[\\s،.؛:؟!])(${approvedFa})([\\s،.؛:؟!]|$)`, 'u');
+    // 1. Check if the approved term is already present (allowing either ZWNJ or normal space)
+    const normalizedApproved = approvedFa.replace(/[\u200c\s]+/g, '[\\u200c\\s]?');
+    const approvedRegex = new RegExp(`(^|[\\s،.؛:؟!])(${normalizedApproved})([\\s،.؛:؟!]|$)`, 'u');
     if (approvedRegex.test(finalTranslation)) {
       appliedTerms.push({
         en: term.en,
@@ -193,7 +280,7 @@ export function applyApprovedGlossary(
       continue;
     }
 
-    // 2. Check for known mistranslations of this term
+    // 2. Check for known mistranslations of this term, sorted by length descending so longer phrases match first
     let replaced = false;
     const knownMistranslations = COMMON_MISTRANSLATIONS[enKey] || [];
     
@@ -201,7 +288,7 @@ export function applyApprovedGlossary(
     const allCandidates = Array.from(new Set([
       ...knownMistranslations,
       ...term.alternates.map(a => a.trim()).filter(a => a !== approvedFa),
-    ]));
+    ])).sort((a, b) => b.length - a.length);
 
     for (const mistranslation of allCandidates) {
       if (!mistranslation || mistranslation === approvedFa) continue;
@@ -218,51 +305,115 @@ export function applyApprovedGlossary(
       }
     }
 
-    // 3. Special handling for singular/simple terms where Google Translate used a different noun
-    // e.g. "admin" in "admin for wordpress" -> Google gives "مدیریت برای وردپرس" or "ادمین وردپرس"
+    // 3. Special handling for critical terms like import, export, admin, etc.
     if (!replaced) {
-      if (enKey === 'admin' && (finalTranslation.includes('مدیریت') || finalTranslation.includes('ادمین'))) {
-        finalTranslation = finalTranslation.replace(/مدیریت|ادمین/g, approvedFa);
-        // If source had "for" and translated text was e.g. "مدیر وردپرس", refine to "مدیر برای وردپرس"
+      if (enKey === 'import') {
+        if (/وارد\s*کردن/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/وارد\s*کردن/gu, approvedFa);
+          appliedTerms.push({ en: term.en, originalFa: 'وارد کردن', approvedFa });
+          replaced = true;
+        } else if (/وارد\s*نمایید/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/وارد\s*نمایید/gu, `${approvedFa} نمایید`);
+          appliedTerms.push({ en: term.en, originalFa: 'وارد نمایید', approvedFa });
+          replaced = true;
+        } else if (/وارد\s*کنید/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/وارد\s*کنید/gu, `${approvedFa} کنید`);
+          appliedTerms.push({ en: term.en, originalFa: 'وارد کنید', approvedFa });
+          replaced = true;
+        } else if (/واردات/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/واردات/gu, approvedFa);
+          appliedTerms.push({ en: term.en, originalFa: 'واردات', approvedFa });
+          replaced = true;
+        } else if (/وارد\s*سازی/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/وارد\s*سازی/gu, approvedFa);
+          appliedTerms.push({ en: term.en, originalFa: 'واردسازی', approvedFa });
+          replaced = true;
+        } else if (/ایمپورت/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/ایمپورت/gu, approvedFa);
+          appliedTerms.push({ en: term.en, originalFa: 'ایمپورت', approvedFa });
+          replaced = true;
+        } else if (/(^|[\s،.؛:؟!])وارد([\s،.؛:؟!]|$)/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/(^|[\s،.؛:؟!])وارد([\s،.؛:؟!]|$)/u, `$1${approvedFa}$2`);
+          appliedTerms.push({ en: term.en, originalFa: 'وارد', approvedFa });
+          replaced = true;
+        }
+      } else if (enKey === 'export') {
+        if (/صادر\s*کردن/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/صادر\s*کردن/gu, approvedFa);
+          appliedTerms.push({ en: term.en, originalFa: 'صادر کردن', approvedFa });
+          replaced = true;
+        } else if (/صادر\s*نمایید/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/صادر\s*نمایید/gu, `${approvedFa} نمایید`);
+          appliedTerms.push({ en: term.en, originalFa: 'صادر نمایید', approvedFa });
+          replaced = true;
+        } else if (/صادر\s*کنید/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/صادر\s*کنید/gu, `${approvedFa} کنید`);
+          appliedTerms.push({ en: term.en, originalFa: 'صادر کنید', approvedFa });
+          replaced = true;
+        } else if (/صادرات/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/صادرات/gu, approvedFa);
+          appliedTerms.push({ en: term.en, originalFa: 'صادرات', approvedFa });
+          replaced = true;
+        } else if (/صادر\s*سازی/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/صادر\s*سازی/gu, approvedFa);
+          appliedTerms.push({ en: term.en, originalFa: 'صادرسازی', approvedFa });
+          replaced = true;
+        } else if (/اکسپورت/u.test(finalTranslation)) {
+          finalTranslation = finalTranslation.replace(/اکسپورت/gu, approvedFa);
+          appliedTerms.push({ en: term.en, originalFa: 'اکسپورت', approvedFa });
+          replaced = true;
+        }
+      } else if (enKey === 'importer' && (finalTranslation.includes('وارد کننده') || finalTranslation.includes('واردکننده'))) {
+        finalTranslation = finalTranslation.replace(/وارد\s*کننده/gu, approvedFa);
+        appliedTerms.push({ en: term.en, originalFa: 'واردکننده', approvedFa });
+        replaced = true;
+      } else if (enKey === 'exporter' && (finalTranslation.includes('صادر کننده') || finalTranslation.includes('صادرکننده'))) {
+        finalTranslation = finalTranslation.replace(/صادر\s*کننده/gu, approvedFa);
+        appliedTerms.push({ en: term.en, originalFa: 'صادرکننده', approvedFa });
+        replaced = true;
+      } else if (enKey === 'admin' && (finalTranslation.includes('مدیریت') || finalTranslation.includes('ادمین'))) {
+        finalTranslation = finalTranslation.replace(/مدیریت|ادمین/gu, approvedFa);
         if (/\bfor\b/i.test(sourceEn) && !finalTranslation.includes('برای')) {
           finalTranslation = finalTranslation.replace(new RegExp(`(${approvedFa})\\s+`, 'u'), `$1 برای `);
         }
         appliedTerms.push({ en: term.en, originalFa: 'مدیریت/ادمین', approvedFa });
         replaced = true;
       } else if (enKey === 'wordpress' && finalTranslation.includes('ورد پرس')) {
-        finalTranslation = finalTranslation.replace(/ورد\s*پرس/g, approvedFa);
+        finalTranslation = finalTranslation.replace(/ورد\s*پرس/gu, approvedFa);
         appliedTerms.push({ en: term.en, originalFa: 'ورد پرس', approvedFa });
         replaced = true;
       } else if (enKey === 'theme' && (finalTranslation.includes('تم') || finalTranslation.includes('قالب'))) {
-        finalTranslation = finalTranslation.replace(/تم|قالب/g, approvedFa);
+        finalTranslation = finalTranslation.replace(/تم|قالب/gu, approvedFa);
         appliedTerms.push({ en: term.en, originalFa: 'تم/قالب', approvedFa });
         replaced = true;
       } else if (enKey === 'plugin' && finalTranslation.includes('پلاگین')) {
-        finalTranslation = finalTranslation.replace(/پلاگین/g, approvedFa);
+        finalTranslation = finalTranslation.replace(/پلاگین/gu, approvedFa);
         appliedTerms.push({ en: term.en, originalFa: 'پلاگین', approvedFa });
         replaced = true;
       } else if (enKey === 'post' && finalTranslation.includes('پست')) {
-        finalTranslation = finalTranslation.replace(/پست/g, approvedFa);
+        finalTranslation = finalTranslation.replace(/پست/gu, approvedFa);
         appliedTerms.push({ en: term.en, originalFa: 'پست', approvedFa });
         replaced = true;
       } else if (enKey === 'comment' && (finalTranslation.includes('کامنت') || finalTranslation.includes('نظر'))) {
-        finalTranslation = finalTranslation.replace(/کامنت|نظر/g, approvedFa);
+        finalTranslation = finalTranslation.replace(/کامنت|نظر/gu, approvedFa);
         appliedTerms.push({ en: term.en, originalFa: 'کامنت/نظر', approvedFa });
         replaced = true;
       } else if (enKey === 'dashboard' && finalTranslation.includes('داشبورد')) {
-        finalTranslation = finalTranslation.replace(/داشبورد/g, approvedFa);
+        finalTranslation = finalTranslation.replace(/داشبورد/gu, approvedFa);
         appliedTerms.push({ en: term.en, originalFa: 'داشبورد', approvedFa });
         replaced = true;
-      } else if (enKey === 'trash' && finalTranslation.includes('سطل زباله')) {
-        finalTranslation = finalTranslation.replace(/سطل زباله/g, approvedFa);
+      } else if (enKey === 'trash' && (finalTranslation.includes('سطل زباله') || finalTranslation.includes('سطل آشغال'))) {
+        finalTranslation = finalTranslation.replace(/سطل\s*(زباله|آشغال)/gu, approvedFa);
         appliedTerms.push({ en: term.en, originalFa: 'سطل زباله', approvedFa });
         replaced = true;
       }
     }
 
-    // If still not present and single-term text (e.g. source was just "Admin"), force exact approved term!
-    if (sourceEn.trim().toLowerCase() === enKey) {
-      finalTranslation = approvedFa;
+    // 4. If single-term text (e.g. source was just "Import" or "Import:" or "Import..."), force exact approved term!
+    const strippedSource = sourceEn.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toLowerCase();
+    if (strippedSource === enKey) {
+      const trailingPunc = rawTranslatedFa.match(/[:؛؟!.]+$/)?.[0] || (sourceEn.endsWith(':') ? ':' : '');
+      finalTranslation = approvedFa + trailingPunc;
       appliedTerms.push({ en: term.en, originalFa: rawTranslatedFa, approvedFa });
     }
   }

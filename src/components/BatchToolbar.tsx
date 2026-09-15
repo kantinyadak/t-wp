@@ -213,11 +213,19 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
           <div className="bg-indigo-50/90 border border-indigo-200 rounded-lg p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
             <div className="flex items-center gap-2.5">
               <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
-              <div>
-                <span className="font-semibold text-indigo-950">
-                  در حال ترجمه خودکار با اولویت واژه‌نامه ({currentProgress.completed.toLocaleString('fa-IR')} از {currentProgress.total.toLocaleString('fa-IR')})
-                </span>
-                <p className="text-indigo-800 truncate max-w-md mt-0.5 font-mono text-[11px]" dir="ltr">
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-indigo-950">
+                    در حال ترجمه خودکار با اولویت واژه‌نامه ({currentProgress.completed.toLocaleString('fa-IR')} از {currentProgress.total.toLocaleString('fa-IR')})
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    به‌روزرسانی زنده
+                  </span>
+                </div>
+                <p className="text-emerald-800 text-[11px] font-medium">
+                  ⚡ سطرهای ترجمه‌شده بلافاصله در جدول ظاهر می‌شوند و می‌توانید هم‌اکنون آن‌ها را بازبینی و ویرایش کنید.
+                </p>
+                <p className="text-indigo-800 truncate max-w-md font-mono text-[11px]" dir="ltr">
                   {currentProgress.currentText}
                 </p>
               </div>

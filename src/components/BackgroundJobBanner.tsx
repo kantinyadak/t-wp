@@ -46,9 +46,12 @@ export const BackgroundJobBanner: React.FC<BackgroundJobBannerProps> = ({
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   مستقل از مرورگر
                 </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                  در حال تزریق زنده به جدول
+                </span>
               </div>
               <p className="text-xs text-indigo-200 mt-0.5">
-                می‌توانید با خیال راحت پنجره مرورگر را ببندید یا اینترنت را قطع کنید؛ سرور کار ترجمه را تا انتها انجام می‌دهد.
+                سطرهای ترجمه‌شده به صورت خودکار و لحظه‌ای به جدول اضافه می‌شوند و می‌توانید هم‌اکنون آن‌ها را بازبینی کنید.
               </p>
             </div>
           </div>
@@ -79,6 +82,20 @@ export const BackgroundJobBanner: React.FC<BackgroundJobBannerProps> = ({
                 ({jobStatus.completed.toLocaleString('fa-IR')} / {jobStatus.total.toLocaleString('fa-IR')})
               </span>
             </div>
+
+            {/* Quick manual sync / review button */}
+            {jobStatus.completed > 0 && (
+              <button
+                type="button"
+                onClick={onApplyResults}
+                disabled={isApplyingResults}
+                title="دریافت آخرین سطرهای ترجمه شده و نمایش فوری در جدول"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-colors shadow-xs"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>همگام‌سازی فوری جدول ({jobStatus.completed.toLocaleString('fa-IR')})</span>
+              </button>
+            )}
 
             <button
               type="button"

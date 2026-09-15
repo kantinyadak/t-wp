@@ -166,8 +166,9 @@ export default function App() {
   // 6. Server Background Job State (runs independently of browser window/connection)
   const [bgJobStatus, setBgJobStatus] = useState<BackgroundJobStatus | null>(null);
   const [isApplyingBgResults, setIsApplyingBgResults] = useState(false);
+  const lastMergedBgCountRef = useRef(0);
 
-  // Poll server background job status
+  // Poll server background job status and auto-merge new items in real-time
   const pollBackgroundStatus = async () => {
     try {
       const res = await fetch('/api/background-job/status');
@@ -175,8 +176,16 @@ export default function App() {
         const data = await res.json();
         if (data && data.job) {
           setBgJobStatus(data.job);
+
+          // If there are newly completed items on the server, auto-stream them into the table!
+          const resultsCount = data.resultsCount || 0;
+          if (resultsCount > lastMergedBgCountRef.current) {
+            lastMergedBgCountRef.current = resultsCount;
+            await handleApplyBackgroundResults(true);
+          }
         } else {
           setBgJobStatus(null);
+          lastMergedBgCountRef.current = 0;
         }
       }
     } catch (e) {
@@ -441,9 +450,11 @@ export default function App() {
   };
 
   // Apply completed background job results to current PO file
-  const handleApplyBackgroundResults = async () => {
+  const handleApplyBackgroundResults = async (isIntermediateSync = false) => {
     try {
-      setIsApplyingBgResults(true);
+      if (!isIntermediateSync) {
+        setIsApplyingBgResults(true);
+      }
       const res = await fetch('/api/background-job/results');
       if (!res.ok) throw new Error('نتایج از سرور دریافت نشد.');
       const data = await res.json();
@@ -452,7 +463,8 @@ export default function App() {
       let appliedCount = 0;
       setPoFile((prev) => {
         const updatedEntries = prev.entries.map((entry) => {
-          if (resultsMap[entry.id]) {
+          // If in results and hasn't been manually edited by user
+          if (resultsMap[entry.id] && !entry.isUserEdited) {
             appliedCount++;
             const item = resultsMap[entry.id];
             const isPlural = Boolean(entry.msgid_plural);
@@ -477,14 +489,23 @@ export default function App() {
         };
       });
 
-      // Clear the finished job on server
-      await fetch('/api/background-job/clear', { method: 'POST' });
-      setBgJobStatus(null);
-      alert(`✅ تعداد ${appliedCount.toLocaleString('fa-IR')} سطر ترجمه شده از سرور با موفقیت به فایل شما اضافه شد.`);
+      if (!isIntermediateSync) {
+        if (data.status === 'completed' || data.status === 'cancelled') {
+          // Clear the finished job on server
+          await fetch('/api/background-job/clear', { method: 'POST' });
+          setBgJobStatus(null);
+          lastMergedBgCountRef.current = 0;
+        }
+        alert(`✅ تعداد ${appliedCount.toLocaleString('fa-IR')} سطر ترجمه شده با موفقیت به جدول افزوده شد.`);
+      }
     } catch (err: any) {
-      alert('خطا در ادغام ترجمه‌ها: ' + err.message);
+      if (!isIntermediateSync) {
+        alert('خطا در ادغام ترجمه‌ها: ' + err.message);
+      }
     } finally {
-      setIsApplyingBgResults(false);
+      if (!isIntermediateSync) {
+        setIsApplyingBgResults(false);
+      }
     }
   };
 
@@ -499,6 +520,7 @@ export default function App() {
     try {
       await fetch('/api/background-job/clear', { method: 'POST' });
       setBgJobStatus(null);
+      lastMergedBgCountRef.current = 0;
     } catch {}
   };
 
@@ -514,6 +536,7 @@ export default function App() {
             isTranslated,
             isFuzzy: false,
             isApproved: isTranslated ? isApproved : false,
+            isUserEdited: true,
           };
         }
         return entry;
@@ -591,10 +614,21 @@ export default function App() {
         (completed, total, currentText) => {
           setCurrentProgress({ completed, total, currentText });
         },
-        () => cancelTranslationRef.current
+        () => cancelTranslationRef.current,
+        (itemResult) => {
+          // LIVE STREAMING: As each row finishes, inject it into poFile immediately!
+          // This allows the user to review, read, and edit translated rows in real-time
+          // without having to wait for the whole batch to complete.
+          setPoFile((prev) => ({
+            ...prev,
+            entries: prev.entries.map((e) =>
+              e.id === itemResult.entry.id && !e.isUserEdited ? itemResult.entry : e
+            ),
+          }));
+        }
       );
 
-      // Merge results
+      // Final merge to ensure any missed items are properly set
       const resultMap = new Map<string, POEntry>();
       for (const r of results) {
         resultMap.set(r.entry.id, r.entry);
@@ -602,7 +636,13 @@ export default function App() {
 
       setPoFile((prev) => ({
         ...prev,
-        entries: prev.entries.map((e) => resultMap.get(e.id) || e),
+        entries: prev.entries.map((e) => {
+          const fresh = resultMap.get(e.id);
+          if (fresh && !e.isUserEdited) {
+            return fresh;
+          }
+          return e;
+        }),
       }));
     } catch (err: any) {
       console.error('Batch translation error:', err);
@@ -633,7 +673,16 @@ export default function App() {
         (completed, total, currentText) => {
           setCurrentProgress({ completed, total, currentText });
         },
-        () => cancelTranslationRef.current
+        () => cancelTranslationRef.current,
+        (itemResult) => {
+          // LIVE STREAMING: Real-time update for selected rows
+          setPoFile((prev) => ({
+            ...prev,
+            entries: prev.entries.map((e) =>
+              e.id === itemResult.entry.id && !e.isUserEdited ? itemResult.entry : e
+            ),
+          }));
+        }
       );
 
       const resultMap = new Map<string, POEntry>();
@@ -643,7 +692,13 @@ export default function App() {
 
       setPoFile((prev) => ({
         ...prev,
-        entries: prev.entries.map((e) => resultMap.get(e.id) || e),
+        entries: prev.entries.map((e) => {
+          const fresh = resultMap.get(e.id);
+          if (fresh && !e.isUserEdited) {
+            return fresh;
+          }
+          return e;
+        }),
       }));
     } catch (err: any) {
       console.error('Selected translation error:', err);

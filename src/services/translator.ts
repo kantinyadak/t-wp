@@ -111,7 +111,8 @@ export async function batchTranslateEntries(
   glossary: GlossaryTerm[],
   engine: 'google' | 'gemini',
   onProgress: (completed: number, total: number, currentMsgid: string) => void,
-  shouldCancel?: () => boolean
+  shouldCancel?: () => boolean,
+  onEntryTranslated?: (result: TranslateItemResult) => void
 ): Promise<TranslateItemResult[]> {
   const results: TranslateItemResult[] = [];
   const total = entries.length;
@@ -149,12 +150,19 @@ export async function batchTranslateEntries(
         matchedTerms: res.appliedTerms.map(t => ({ en: t.en, fa: t.approvedFa })),
       };
 
-      results.push({
+      const itemResult: TranslateItemResult = {
         entry: updatedEntry,
         rawGoogleTranslate: res.rawTranslation,
         finalTranslation: res.finalTranslation,
         appliedTerms: res.appliedTerms,
-      });
+      };
+
+      results.push(itemResult);
+
+      // Immediately notify listener so the row appears translated and can be reviewed in real-time
+      if (onEntryTranslated) {
+        onEntryTranslated(itemResult);
+      }
     } catch (err) {
       console.error(`Error translating entry "${entry.msgid}":`, err);
       // Keep entry as is but continue batch

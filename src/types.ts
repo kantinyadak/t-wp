@@ -53,6 +53,7 @@ export interface POEntry {
   isTranslated: boolean;
   isFuzzy: boolean;
   isApproved: boolean;
+  isUserEdited?: boolean;
 }
 
 export interface POFile {
