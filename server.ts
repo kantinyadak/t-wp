@@ -317,6 +317,8 @@ interface BackgroundJob {
   results: Record<
     string,
     {
+      id?: string;
+      msgid?: string;
       msgstr: string;
       msgstr_plural?: string[];
       appliedTerms: { en: string; originalFa: string; approvedFa: string }[];
@@ -697,6 +699,8 @@ async function runServerBackgroundTranslation(
       }
 
       job.results[entry.id] = {
+        id: entry.id,
+        msgid: entry.msgid,
         msgstr: finalFa,
         msgstr_plural: entry.msgid_plural ? [finalFa, pluralTrans] : undefined,
         appliedTerms: [...applied, ...pluralApplied],

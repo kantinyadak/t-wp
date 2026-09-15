@@ -9,6 +9,7 @@ import { TranslationPlayground } from './components/TranslationPlayground';
 import { EmptyPOState } from './components/EmptyPOState';
 import { BackgroundJobBanner } from './components/BackgroundJobBanner';
 import { ScrollToTopSearch } from './components/ScrollToTopSearch';
+import { ToastContainer, ToastMessage } from './components/Toast';
 import {
   GlossaryTerm,
   POEntry,
@@ -209,6 +210,15 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [recentlyTranslatedIds, setRecentlyTranslatedIds] = useState<Set<string>>(new Set());
+
+  // Toast notifications for clear feedback
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const addToast = (toast: Omit<ToastMessage, 'id'>) => {
+    setToasts((prev) => [...prev, { ...toast, id: Math.random().toString(36).slice(2) }]);
+  };
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // 8. Modals
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
@@ -461,15 +471,26 @@ export default function App() {
       const res = await fetch('/api/background-job/results');
       if (!res.ok) throw new Error('نتایج از سرور دریافت نشد.');
       const data = await res.json();
-      const resultsMap = data.results || {};
+      const resultsMap: Record<string, any> = data.results || {};
 
-      let appliedCount = 0;
+      // Build secondary lookup map by original msgid for 100% reliable matching
+      const resultsByMsgid = new Map<string, any>();
+      for (const [key, val] of Object.entries(resultsMap)) {
+        if (val && typeof val === 'object') {
+          if (val.msgid) resultsByMsgid.set(val.msgid, val);
+          if (val.id) resultsByMsgid.set(val.id, val);
+        }
+      }
+
+      let countApplied = 0;
+      const appliedIds = new Set<string>();
+
       setPoFile((prev) => {
         const updatedEntries = prev.entries.map((entry) => {
-          // If in results and hasn't been manually edited by user
-          if (resultsMap[entry.id] && !entry.isUserEdited) {
-            appliedCount++;
-            const item = resultsMap[entry.id];
+          const item = resultsMap[entry.id] || resultsByMsgid.get(entry.id) || resultsByMsgid.get(entry.msgid);
+          if (item && item.msgstr) {
+            countApplied++;
+            appliedIds.add(entry.id);
             const isPlural = Boolean(entry.msgid_plural);
             const msgstr = isPlural
               ? item.msgstr_plural || [item.msgstr, item.msgstr]
@@ -481,6 +502,7 @@ export default function App() {
               isTranslated: true,
               isApproved: true,
               isFuzzy: false,
+              isUserEdited: false,
               matchedTerms: item.appliedTerms?.map((t: any) => ({ en: t.en, fa: t.approvedFa })) || [],
             };
           }
@@ -495,6 +517,9 @@ export default function App() {
       // Track newly applied background translations for instant review
       setRecentlyTranslatedIds((prev) => {
         const next = new Set(prev);
+        for (const id of appliedIds) {
+          next.add(id);
+        }
         for (const id of Object.keys(resultsMap)) {
           next.add(id);
         }
@@ -508,11 +533,19 @@ export default function App() {
           setBgJobStatus(null);
           lastMergedBgCountRef.current = 0;
         }
-        alert(`✅ تعداد ${appliedCount.toLocaleString('fa-IR')} سطر ترجمه شده با موفقیت به جدول افزوده شد.`);
+        addToast({
+          type: 'success',
+          title: 'ترجمه‌ها با موفقیت اعمال شدند',
+          description: `تعداد ${countApplied.toLocaleString('fa-IR')} سطر به جدول فایل افزوده شد.`,
+        });
       }
     } catch (err: any) {
       if (!isIntermediateSync) {
-        alert('خطا در ادغام ترجمه‌ها: ' + err.message);
+        addToast({
+          type: 'error',
+          title: 'خطا در اعمال ترجمه‌ها',
+          description: err.message,
+        });
       }
     } finally {
       if (!isIntermediateSync) {
@@ -589,6 +622,7 @@ export default function App() {
               isTranslated: true,
               isFuzzy: false,
               isApproved: true,
+              isUserEdited: false,
               rawGoogleTranslate: res.rawTranslation,
               matchedTerms: res.appliedTerms.map((t) => ({ en: t.en, fa: t.approvedFa })),
             };
@@ -597,8 +631,18 @@ export default function App() {
         });
         return { ...prev, entries: updated };
       });
+      setRecentlyTranslatedIds((prev) => new Set(prev).add(entry.id));
+      addToast({
+        type: 'success',
+        title: 'ترجمه سطر با موفقیت اعمال شد',
+        description: `«${entry.msgid.slice(0, 35)}» ترجمه گردید.`,
+      });
     } catch (err: any) {
-      alert(`خطا در ترجمه: ${err.message}`);
+      addToast({
+        type: 'error',
+        title: 'خطا در ترجمه سطر',
+        description: err.message,
+      });
     } finally {
       setTranslatingRowId(null);
     }
@@ -609,7 +653,14 @@ export default function App() {
     const untranslated = poFile.entries.filter(
       (e) => !e.isTranslated || !isStringTranslatedToPersian(e.msgid, e.msgstr)
     );
-    if (untranslated.length === 0) return;
+    if (untranslated.length === 0) {
+      addToast({
+        type: 'info',
+        title: 'موردی برای ترجمه یافت نشد',
+        description: 'تمام سطرها دارای ترجمه فارسی هستند.',
+      });
+      return;
+    }
 
     cancelTranslationRef.current = false;
     setIsTranslating(true);
@@ -631,19 +682,19 @@ export default function App() {
         () => cancelTranslationRef.current,
         (itemResult) => {
           // LIVE STREAMING: As each row finishes, inject it into poFile immediately!
-          // This allows the user to review, read, and edit translated rows in real-time
-          // without having to wait for the whole batch to complete.
           setPoFile((prev) => ({
             ...prev,
             entries: prev.entries.map((e) =>
-              e.id === itemResult.entry.id && !e.isUserEdited ? itemResult.entry : e
+              e.id === itemResult.entry.id
+                ? { ...itemResult.entry, isUserEdited: false }
+                : e
             ),
           }));
           setRecentlyTranslatedIds((prev) => new Set(prev).add(itemResult.entry.id));
         }
       );
 
-      // Final merge to ensure any missed items are properly set
+      // Final merge to guarantee every translated item is recorded
       const resultMap = new Map<string, POEntry>();
       for (const r of results) {
         resultMap.set(r.entry.id, r.entry);
@@ -653,14 +704,25 @@ export default function App() {
         ...prev,
         entries: prev.entries.map((e) => {
           const fresh = resultMap.get(e.id);
-          if (fresh && !e.isUserEdited) {
-            return fresh;
+          if (fresh) {
+            return { ...fresh, isUserEdited: false };
           }
           return e;
         }),
       }));
+
+      addToast({
+        type: 'success',
+        title: 'ترجمه سریع تکمیل شد',
+        description: `تعداد ${results.length.toLocaleString('fa-IR')} سطر با موفقیت ترجمه و اعمال شد.`,
+      });
     } catch (err: any) {
       console.error('Batch translation error:', err);
+      addToast({
+        type: 'error',
+        title: 'خطا در ترجمه دسته‌ای',
+        description: err.message,
+      });
     } finally {
       setIsTranslating(false);
       setCurrentProgress(undefined);
@@ -694,9 +756,12 @@ export default function App() {
           setPoFile((prev) => ({
             ...prev,
             entries: prev.entries.map((e) =>
-              e.id === itemResult.entry.id && !e.isUserEdited ? itemResult.entry : e
+              e.id === itemResult.entry.id
+                ? { ...itemResult.entry, isUserEdited: false }
+                : e
             ),
           }));
+          setRecentlyTranslatedIds((prev) => new Set(prev).add(itemResult.entry.id));
         }
       );
 
@@ -709,14 +774,25 @@ export default function App() {
         ...prev,
         entries: prev.entries.map((e) => {
           const fresh = resultMap.get(e.id);
-          if (fresh && !e.isUserEdited) {
-            return fresh;
+          if (fresh) {
+            return { ...fresh, isUserEdited: false };
           }
           return e;
         }),
       }));
+
+      addToast({
+        type: 'success',
+        title: 'سطرهای انتخاب‌شده ترجمه شدند',
+        description: `تعداد ${results.length.toLocaleString('fa-IR')} سطر ترجمه گردید.`,
+      });
     } catch (err: any) {
       console.error('Selected translation error:', err);
+      addToast({
+        type: 'error',
+        title: 'خطا در ترجمه انتخاب‌شده‌ها',
+        description: err.message,
+      });
     } finally {
       setIsTranslating(false);
       setCurrentProgress(undefined);
@@ -733,7 +809,8 @@ export default function App() {
     let modifiedCount = 0;
     setPoFile((prev) => {
       const updated = prev.entries.map((entry) => {
-        if (!entry.isTranslated || !entry.msgstr[0]) return entry;
+        const hasTranslation = entry.msgstr && entry.msgstr[0] && entry.msgstr[0].trim().length > 0;
+        if (!hasTranslation) return entry;
 
         const currentFa = entry.msgstr[0];
         const { finalTranslation, appliedTerms } = applyApprovedGlossary(
@@ -742,11 +819,23 @@ export default function App() {
           activeGlossary
         );
 
-        if (finalTranslation !== currentFa) {
+        let pluralFa = entry.msgstr[1] || '';
+        if (entry.msgid_plural && pluralFa) {
+          const pResult = applyApprovedGlossary(entry.msgid_plural, pluralFa, activeGlossary);
+          pluralFa = pResult.finalTranslation;
+        }
+
+        const newMsgstr = entry.msgid_plural
+          ? [finalTranslation, pluralFa]
+          : [finalTranslation, ...entry.msgstr.slice(1)];
+
+        if (finalTranslation !== currentFa || (entry.msgid_plural && pluralFa !== entry.msgstr[1])) {
           modifiedCount++;
           return {
             ...entry,
-            msgstr: [finalTranslation, ...(entry.msgstr.slice(1))],
+            msgstr: newMsgstr,
+            isTranslated: true,
+            isApproved: true,
             matchedTerms: appliedTerms.map((t) => ({ en: t.en, fa: t.approvedFa })),
           };
         }
@@ -756,7 +845,11 @@ export default function App() {
       return { ...prev, entries: updated };
     });
 
-    alert(`واژه‌نامه با موفقیت اعمال شد. ${modifiedCount.toLocaleString('fa-IR')} مورد بر اساس لغات مصوب بازبینی و اصلاح شد.`);
+    addToast({
+      type: 'success',
+      title: 'واژه‌نامه با موفقیت اعمال شد',
+      description: `${modifiedCount.toLocaleString('fa-IR')} مورد بر اساس لغات مصوب بازبینی و اصلاح شد.`,
+    });
   };
 
   // Clear all translations
@@ -880,7 +973,8 @@ export default function App() {
     return poFile.entries.filter((entry) => {
       // 1. Tab filter
       const isPersian = entry.isTranslated && isStringTranslatedToPersian(entry.msgid, entry.msgstr);
-      if (filter === 'untranslated' && isPersian) return false;
+      // Keep recently translated rows visible with 'ready for review' badge so user sees the translations immediately
+      if (filter === 'untranslated' && isPersian && !recentlyTranslatedIds.has(entry.id)) return false;
       if (filter === 'translated' && !isPersian) return false;
       if (filter === 'recent' && !recentlyTranslatedIds.has(entry.id)) return false;
       if (filter === 'plural' && !entry.msgid_plural) return false;
@@ -1067,6 +1161,9 @@ export default function App() {
         currentFileName={poFile.fileName}
         onSaveHeader={handleSaveHeader}
       />
+
+      {/* Non-intrusive interactive feedback toasts */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
