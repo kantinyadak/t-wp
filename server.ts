@@ -264,6 +264,371 @@ app.post('/api/sync-sheet', async (req, res) => {
   }
 });
 
+/**
+ * ============================================================================
+ * BACKGROUND TRANSLATION ENGINE (Server-Side Persistence)
+ * Allows translation to continue seamlessly even if the browser tab is closed!
+ * ============================================================================
+ */
+
+interface BackgroundJobEntry {
+  id: string;
+  msgid: string;
+  msgid_plural?: string;
+}
+
+interface BackgroundJobTerm {
+  en: string;
+  fa: string;
+  primaryFa: string;
+  alternates?: string[];
+}
+
+interface BackgroundJob {
+  id: string;
+  status: 'idle' | 'running' | 'completed' | 'cancelled' | 'error';
+  fileName: string;
+  total: number;
+  completed: number;
+  currentText: string;
+  speedPerMin: number;
+  estimatedSecondsLeft: number;
+  startedAt: number;
+  updatedAt: number;
+  finishedAt?: number;
+  appliedTermsCount: number;
+  error?: string;
+  results: Record<
+    string,
+    {
+      msgstr: string;
+      msgstr_plural?: string[];
+      appliedTerms: { en: string; originalFa: string; approvedFa: string }[];
+    }
+  >;
+}
+
+let currentBackgroundJob: BackgroundJob | null = null;
+let backgroundJobCancelRequested = false;
+
+const COMMON_SERVER_MISTRANSLATIONS: Record<string, string[]> = {
+  admin: ['مدیریت', 'ادمین', 'مدیران', 'ادمین‌ها'],
+  administration: ['ادمین', 'مدیر'],
+  administrator: ['ادمین', 'مدیریت کل', 'مدیرسیستم'],
+  comment: ['نظر', 'کامنت', 'دیدگاه'],
+  comments: ['نظرات', 'کامنت‌ها', 'دیدگاه‌ها'],
+  plugin: ['پلاگین', 'پلاگین‌ها', 'افزونه'],
+  plugins: ['پلاگین‌ها', 'پلاگین', 'افزونه‌ها'],
+  theme: ['تم', 'قالب', 'پوسته'],
+  themes: ['تم‌ها', 'قالب‌ها', 'پوسته‌ها'],
+  post: ['پست', 'مطلب', 'ارسال', 'نوشته'],
+  posts: ['پست‌ها', 'مطالب', 'ارسال‌ها', 'نوشته‌ها'],
+  dashboard: ['داشبورد', 'پیشخوان'],
+  trash: ['سطل زباله', 'سطل آشغال', 'زباله‌دان'],
+  tag: ['تگ', 'برچسب'],
+  tags: ['تگ‌ها', 'برچسب‌ها'],
+  category: ['کتگوری', 'دسته‌بندی', 'دسته'],
+  categories: ['دسته‌بندی‌ها', 'کتگوری‌ها', 'دسته‌ها'],
+  customizer: ['شخصی‌ساز', 'کاستومایزر', 'سفارشی‌ساز'],
+  permalink: ['لینک ثابت', 'پیوند دائمی', 'پیوند یکتا'],
+  media: ['چندرسانه‌ای', 'مدیا', 'رسانه'],
+  widget: ['ویجت', 'ابزارک'],
+  widgets: ['ویجت‌ها', 'ابزارک‌ها'],
+  header: ['هدر', 'سربرگ'],
+  footer: ['فوتر', 'پابرگ'],
+  sidebar: ['سایدبار', 'نوار کناری'],
+  feed: ['فید', 'خوراک'],
+  excerpt: ['خلاصه', 'چکیده'],
+  slug: ['اسلاگ', 'نامک'],
+  database: ['دیتابیس', 'پایگاه‌داده'],
+  upload: ['آپلود', 'ارسال', 'ارسال فایل'],
+  download: ['دانلود', 'دریافت'],
+  settings: ['تنظیمات', 'پیکربندی'],
+  preview: ['پیش نمایش', 'پیش‌نمایش'],
+  spam: ['اسپم', 'جفنگ', 'هرزنامه'],
+};
+
+function maskPlaceholdersServer(text: string): { masked: string; placeholders: string[] } {
+  const placeholders: string[] = [];
+  let counter = 0;
+  const patterns = [
+    /<[^>]+>/g,
+    /&[a-zA-Z0-9#]+;/g,
+    /%(?:\d+\$)?[+-]?(?:[ 0]|'.)?-?\d*(?:\.\d+)?[bcdeEufFgGosxX]/g,
+    /\{[a-zA-Z0-9_.-]+\}/g,
+    /\[[a-zA-Z0-9_.-]+\]/g,
+    /https?:\/\/[^\s"'<>]+/g,
+  ];
+  let masked = text;
+  for (const regex of patterns) {
+    masked = masked.replace(regex, (match) => {
+      const token = `__PH_${counter}__`;
+      placeholders.push(match);
+      counter++;
+      return token;
+    });
+  }
+  return { masked, placeholders };
+}
+
+function unmaskPlaceholdersServer(text: string, placeholders: string[]): string {
+  let result = text;
+  for (let i = 0; i < placeholders.length; i++) {
+    const regex = new RegExp(`__\\s*PH_${i}\\s*__`, 'gi');
+    result = result.replace(regex, placeholders[i]);
+  }
+  return result;
+}
+
+function applyServerGlossary(
+  sourceEn: string,
+  rawFa: string,
+  glossary: BackgroundJobTerm[]
+): { finalFa: string; applied: { en: string; originalFa: string; approvedFa: string }[] } {
+  if (!glossary || glossary.length === 0) {
+    return { finalFa: rawFa, applied: [] };
+  }
+
+  let finalFa = rawFa;
+  const applied: { en: string; originalFa: string; approvedFa: string }[] = [];
+  const lowerSource = sourceEn.toLowerCase();
+
+  for (const term of glossary) {
+    if (!term.en || !term.primaryFa) continue;
+    const termEnLower = term.en.toLowerCase().trim();
+    const wordBoundaryRegex = new RegExp(`\\b${termEnLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (!wordBoundaryRegex.test(lowerSource)) {
+      continue;
+    }
+
+    const approvedFa = term.primaryFa.trim();
+    const approvedRegex = new RegExp(`(^|[\\s،.؛:؟!])(${approvedFa})([\\s،.؛:؟!]|$)`, 'u');
+    if (approvedRegex.test(finalFa)) {
+      applied.push({ en: term.en, originalFa: approvedFa, approvedFa });
+      continue;
+    }
+
+    let replaced = false;
+    const candidates = [
+      ...(term.alternates || []),
+      ...(COMMON_SERVER_MISTRANSLATIONS[termEnLower] || []),
+    ];
+
+    for (const cand of candidates) {
+      if (!cand || cand === approvedFa) continue;
+      const candRegex = new RegExp(`(^|[\\s،.؛:؟!])(${cand.trim()})([\\s،.؛:؟!]|$)`, 'u');
+      if (candRegex.test(finalFa)) {
+        finalFa = finalFa.replace(candRegex, `$1${approvedFa}$3`);
+        applied.push({ en: term.en, originalFa: cand, approvedFa });
+        replaced = true;
+        break;
+      }
+    }
+
+    if (!replaced && termEnLower === 'admin' && (finalFa.includes('مدیریت') || finalFa.includes('ادمین'))) {
+      finalFa = finalFa.replace(/مدیریت|ادمین/g, approvedFa);
+      if (/\bfor\b/i.test(sourceEn) && !finalFa.includes('برای')) {
+        finalFa = finalFa.replace(new RegExp(`(${approvedFa})\\s+`, 'u'), `$1 برای `);
+      }
+      applied.push({ en: term.en, originalFa: 'مدیریت/ادمین', approvedFa });
+    }
+  }
+
+  return { finalFa, applied };
+}
+
+async function runServerBackgroundTranslation(
+  job: BackgroundJob,
+  entries: BackgroundJobEntry[],
+  glossary: BackgroundJobTerm[],
+  engine: 'google' | 'gemini'
+) {
+  const startTime = Date.now();
+  let totalAppliedTerms = 0;
+
+  for (let i = 0; i < entries.length; i++) {
+    if (backgroundJobCancelRequested) {
+      job.status = 'cancelled';
+      job.updatedAt = Date.now();
+      break;
+    }
+
+    const entry = entries[i];
+    job.currentText = entry.msgid.slice(0, 80);
+    job.updatedAt = Date.now();
+
+    try {
+      // 1. Singular translation
+      const { masked, placeholders } = maskPlaceholdersServer(entry.msgid);
+      const rawTrans = await translateFreeGoogle(masked);
+      const unmasked = unmaskPlaceholdersServer(rawTrans, placeholders);
+      const { finalFa, applied } = applyServerGlossary(entry.msgid, unmasked, glossary);
+
+      totalAppliedTerms += applied.length;
+
+      // 2. Plural translation (if exists)
+      let pluralTrans = '';
+      let pluralApplied: any[] = [];
+      if (entry.msgid_plural) {
+        const pMask = maskPlaceholdersServer(entry.msgid_plural);
+        const pRaw = await translateFreeGoogle(pMask.masked);
+        const pUnmasked = unmaskPlaceholdersServer(pRaw, pMask.placeholders);
+        const pProcessed = applyServerGlossary(entry.msgid_plural, pUnmasked, glossary);
+        pluralTrans = pProcessed.finalFa;
+        pluralApplied = pProcessed.applied;
+        totalAppliedTerms += pluralApplied.length;
+      }
+
+      job.results[entry.id] = {
+        msgstr: finalFa,
+        msgstr_plural: entry.msgid_plural ? [finalFa, pluralTrans] : undefined,
+        appliedTerms: [...applied, ...pluralApplied],
+      };
+
+      job.completed = i + 1;
+      job.appliedTermsCount = totalAppliedTerms;
+
+      // Speed & ETA calculation
+      const elapsedMs = Math.max(Date.now() - startTime, 1000);
+      const speedPerMin = Math.round((job.completed / (elapsedMs / 1000)) * 60);
+      const remainingCount = entries.length - job.completed;
+      const estimatedSecondsLeft = speedPerMin > 0 ? Math.round((remainingCount / speedPerMin) * 60) : 0;
+
+      job.speedPerMin = speedPerMin;
+      job.estimatedSecondsLeft = estimatedSecondsLeft;
+
+      // Friendly non-blocking delay every 5 translations
+      if (i % 5 === 0 && i > 0) {
+        await new Promise((r) => setTimeout(r, 90));
+      }
+    } catch (err: any) {
+      console.error(`Error translating entry ${entry.id} in background:`, err);
+    }
+  }
+
+  if (job.status !== 'cancelled') {
+    job.status = 'completed';
+    job.finishedAt = Date.now();
+    job.estimatedSecondsLeft = 0;
+    job.updatedAt = Date.now();
+  }
+}
+
+/**
+ * Start a server-side background translation job
+ */
+app.post('/api/background-job/start', async (req, res) => {
+  try {
+    const { fileName, entries, glossary, engine = 'google' } = req.body;
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({ error: 'هیچ سطری برای ترجمه در پس‌زمینه ارسال نشده است.' });
+    }
+
+    // Cancel any currently running job
+    backgroundJobCancelRequested = true;
+    await new Promise((r) => setTimeout(r, 100));
+
+    backgroundJobCancelRequested = false;
+    const jobId = 'bg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    currentBackgroundJob = {
+      id: jobId,
+      status: 'running',
+      fileName: fileName || 'wordpress.po',
+      total: entries.length,
+      completed: 0,
+      currentText: '',
+      speedPerMin: 0,
+      estimatedSecondsLeft: 0,
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      appliedTermsCount: 0,
+      results: {},
+    };
+
+    // Kick off asynchronous task in the background without waiting for it to finish!
+    runServerBackgroundTranslation(
+      currentBackgroundJob,
+      entries,
+      Array.isArray(glossary) ? glossary : [],
+      engine
+    ).catch((err) => {
+      console.error('Background translation worker error:', err);
+      if (currentBackgroundJob) {
+        currentBackgroundJob.status = 'error';
+        currentBackgroundJob.error = err.message || 'خطای ناشناخته در پس‌زمینه';
+      }
+    });
+
+    return res.json({
+      success: true,
+      jobId,
+      message: 'عملیات ترجمه در پس‌زمینه سرور با موفقیت آغاز شد. می‌توانید پنجره مرورگر را ببندید یا اینترنت خود را قطع کنید؛ سرور پردازش را تا انتها ادامه خواهد داد.',
+    });
+  } catch (error: any) {
+    console.error('Start background job error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to start background translation' });
+  }
+});
+
+/**
+ * Check the status of current background job
+ */
+app.get('/api/background-job/status', (req, res) => {
+  if (!currentBackgroundJob) {
+    return res.json({ status: 'idle' });
+  }
+
+  // Return lightweight status without dumping all results
+  const { results, ...statusLight } = currentBackgroundJob;
+  return res.json({
+    status: statusLight.status,
+    job: statusLight,
+    resultsCount: Object.keys(results).length,
+  });
+});
+
+/**
+ * Retrieve completed results to merge into PO file
+ */
+app.get('/api/background-job/results', (req, res) => {
+  if (!currentBackgroundJob) {
+    return res.status(404).json({ error: 'هیچ کاری در سرور یافت نشد.' });
+  }
+
+  return res.json({
+    success: true,
+    jobId: currentBackgroundJob.id,
+    status: currentBackgroundJob.status,
+    total: currentBackgroundJob.total,
+    completed: currentBackgroundJob.completed,
+    appliedTermsCount: currentBackgroundJob.appliedTermsCount,
+    results: currentBackgroundJob.results,
+  });
+});
+
+/**
+ * Cancel the active background job
+ */
+app.post('/api/background-job/cancel', (req, res) => {
+  if (currentBackgroundJob && currentBackgroundJob.status === 'running') {
+    backgroundJobCancelRequested = true;
+    currentBackgroundJob.status = 'cancelled';
+    currentBackgroundJob.updatedAt = Date.now();
+  }
+  return res.json({ success: true, message: 'دستور لغو فرآیند پس‌زمینه ارسال شد.' });
+});
+
+/**
+ * Dismiss / clear current job
+ */
+app.post('/api/background-job/clear', (req, res) => {
+  currentBackgroundJob = null;
+  backgroundJobCancelRequested = false;
+  return res.json({ success: true });
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

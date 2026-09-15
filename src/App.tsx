@@ -6,6 +6,9 @@ import { POEditorTable } from './components/POEditorTable';
 import { GlossaryModal } from './components/GlossaryModal';
 import { POHeaderModal } from './components/POHeaderModal';
 import { TranslationPlayground } from './components/TranslationPlayground';
+import { EmptyPOState } from './components/EmptyPOState';
+import { BackgroundJobBanner } from './components/BackgroundJobBanner';
+import { ScrollToTopSearch } from './components/ScrollToTopSearch';
 import {
   GlossaryTerm,
   POEntry,
@@ -14,6 +17,7 @@ import {
   SyncStatus,
   TranslationEngine,
   TranslationStats,
+  BackgroundJobStatus,
 } from './types';
 import { INITIAL_GLOSSARY, parseGlossaryCsv } from './data/defaultGlossary';
 import { SAMPLE_WP_PO_CONTENT } from './data/samplePo';
@@ -29,6 +33,26 @@ const STORAGE_KEY_GLOSSARY = 'pomo_translator_glossary_v1';
 const STORAGE_KEY_SYNC = 'pomo_translator_sync_status_v1';
 const STORAGE_KEY_AUTOSYNC = 'pomo_translator_autosync_v1';
 const STORAGE_KEY_ENGINE = 'pomo_translator_engine_v1';
+const STORAGE_KEY_PO = 'pomo_translator_active_po_v1';
+
+const EMPTY_INITIAL_PO: POFile = {
+  header: {
+    projectIdVersion: '',
+    potCreationDate: new Date().toISOString(),
+    poRevisionDate: new Date().toISOString(),
+    lastTranslator: '',
+    language: 'fa_IR',
+    mimeVersion: '1.0',
+    contentType: 'text/plain; charset=UTF-8',
+    contentTransferEncoding: '8bit',
+    pluralForms: 'nplurals=2; plural=(n > 1);',
+    xGenerator: 'WordPress Persian PO/MO Translator Studio',
+    projectType: 'plugin',
+    rawHeaders: {},
+  },
+  entries: [],
+  fileName: '',
+};
 
 export default function App() {
   // 1. Glossary state & local storage persistence
@@ -112,21 +136,75 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY_ENGINE, engine);
   }, [engine]);
 
-  // 5. Active PO File
+  // 5. Active PO File (Zero default demo data - clean initial state or persisted active work)
   const [poFile, setPoFile] = useState<POFile>(() => {
-    return parsePO(SAMPLE_WP_PO_CONTENT, 'wordpress-fa.po');
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_PO);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.entries) && parsed.entries.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return EMPTY_INITIAL_PO;
   });
 
-  // 6. UI Filters, Search, Selection
+  // Persist current active PO file to local storage
+  useEffect(() => {
+    try {
+      if (poFile.entries.length > 0) {
+        localStorage.setItem(STORAGE_KEY_PO, JSON.stringify(poFile));
+      } else {
+        localStorage.removeItem(STORAGE_KEY_PO);
+      }
+    } catch (e) {
+      console.error('Error saving PO file cache:', e);
+    }
+  }, [poFile]);
+
+  // 6. Server Background Job State (runs independently of browser window/connection)
+  const [bgJobStatus, setBgJobStatus] = useState<BackgroundJobStatus | null>(null);
+  const [isApplyingBgResults, setIsApplyingBgResults] = useState(false);
+
+  // Poll server background job status
+  const pollBackgroundStatus = async () => {
+    try {
+      const res = await fetch('/api/background-job/status');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.job) {
+          setBgJobStatus(data.job);
+        } else {
+          setBgJobStatus(null);
+        }
+      }
+    } catch (e) {
+      // ignore network hiccups silently
+    }
+  };
+
+  useEffect(() => {
+    pollBackgroundStatus();
+    const interval = setInterval(
+      () => {
+        pollBackgroundStatus();
+      },
+      bgJobStatus?.status === 'running' ? 2500 : 8000
+    );
+    return () => clearInterval(interval);
+  }, [bgJobStatus?.status]);
+
+  // 7. UI Filters, Search, Selection
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // 7. Modals
+  // 8. Modals
   const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
   const [isHeaderModalOpen, setIsHeaderModalOpen] = useState(false);
 
-  // 8. Translation & Operation Progress
+  // 9. Translation & Operation Progress
   const [isTranslating, setIsTranslating] = useState(false);
   const [isSyncingSheet, setIsSyncingSheet] = useState(false);
   const [translatingRowId, setTranslatingRowId] = useState<string | null>(null);
@@ -260,10 +338,168 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Load sample WordPress file
+  // Load sample WordPress file (explicitly on user click, never default)
   const handleLoadSample = () => {
     setPoFile(parsePO(SAMPLE_WP_PO_CONTENT, 'wordpress-sample.po'));
     setSelectedIds(new Set());
+    setSearchQuery('');
+  };
+
+  // Close active file / start fresh
+  const handleCloseFile = () => {
+    if (poFile.entries.length > 0) {
+      const confirmed = window.confirm(
+        'آیا از بستن فایل فعلی مطمئن هستید؟ (اگر فایل را دانلود نکرده باشید، ممکن است تغییرات شما پاک شود)'
+      );
+      if (!confirmed) return;
+    }
+    setPoFile(EMPTY_INITIAL_PO);
+    setSelectedIds(new Set());
+    setSearchQuery('');
+    setFilter('all');
+    localStorage.removeItem(STORAGE_KEY_PO);
+  };
+
+  // Create empty new PO project
+  const handleCreateEmptyFile = () => {
+    const emptyFile: POFile = {
+      header: {
+        projectIdVersion: 'پروژه جدید وردپرس',
+        potCreationDate: new Date().toISOString(),
+        poRevisionDate: new Date().toISOString(),
+        lastTranslator: '',
+        language: 'fa_IR',
+        mimeVersion: '1.0',
+        contentType: 'text/plain; charset=UTF-8',
+        contentTransferEncoding: '8bit',
+        pluralForms: 'nplurals=2; plural=(n > 1);',
+        xGenerator: 'WordPress Persian PO/MO Translator Studio',
+        projectType: 'plugin',
+        rawHeaders: {},
+      },
+      entries: [
+        {
+          id: '1',
+          msgid: 'Welcome to WordPress',
+          msgstr: ['خوش آمدید به وردپرس'],
+          references: ['wp-admin/index.php:12'],
+          comments: ['پیام خوش‌آمدگویی پیش‌فرض'],
+          extractedComments: [],
+          flags: [],
+          isFuzzy: false,
+          isTranslated: true,
+          isApproved: true,
+        },
+      ],
+      fileName: 'new-project.po',
+    };
+    setPoFile(emptyFile);
+    setSelectedIds(new Set());
+    setSearchQuery('');
+  };
+
+  // Start background translation job in server (runs even if tab is closed or offline)
+  const handleStartBackgroundJob = async () => {
+    const untranslated = poFile.entries.filter((e) => !e.msgstr || e.msgstr.every((s) => !s || !s.trim()));
+    if (untranslated.length === 0) {
+      alert('تمام سطرها از قبل دارای ترجمه هستند.');
+      return;
+    }
+
+    try {
+      if (autoSyncBeforeTranslate && syncStatus.sheetUrl && syncStatus.sheetUrl.trim()) {
+        await handleSyncSheet();
+      }
+
+      const res = await fetch('/api/background-job/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: poFile.fileName || 'wordpress.po',
+          entries: untranslated.map((e) => ({
+            id: e.id,
+            msgid: e.msgid,
+            msgid_plural: e.msgid_plural,
+          })),
+          glossary,
+          engine,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'خطا در آغاز فرآیند سرور');
+      }
+
+      const data = await res.json();
+      await pollBackgroundStatus();
+      alert('🚀 ' + data.message);
+    } catch (error: any) {
+      console.error('Error starting server background job:', error);
+      alert('خطا در شروع ترجمه پس‌زمینه: ' + error.message);
+    }
+  };
+
+  // Apply completed background job results to current PO file
+  const handleApplyBackgroundResults = async () => {
+    try {
+      setIsApplyingBgResults(true);
+      const res = await fetch('/api/background-job/results');
+      if (!res.ok) throw new Error('نتایج از سرور دریافت نشد.');
+      const data = await res.json();
+      const resultsMap = data.results || {};
+
+      let appliedCount = 0;
+      setPoFile((prev) => {
+        const updatedEntries = prev.entries.map((entry) => {
+          if (resultsMap[entry.id]) {
+            appliedCount++;
+            const item = resultsMap[entry.id];
+            const isPlural = Boolean(entry.msgid_plural);
+            const msgstr = isPlural
+              ? item.msgstr_plural || [item.msgstr, item.msgstr]
+              : [item.msgstr];
+
+            return {
+              ...entry,
+              msgstr,
+              isTranslated: true,
+              isApproved: true,
+              isFuzzy: false,
+              matchedTerms: item.appliedTerms?.map((t: any) => ({ en: t.en, fa: t.approvedFa })) || [],
+            };
+          }
+          return entry;
+        });
+        return {
+          ...prev,
+          entries: updatedEntries,
+        };
+      });
+
+      // Clear the finished job on server
+      await fetch('/api/background-job/clear', { method: 'POST' });
+      setBgJobStatus(null);
+      alert(`✅ تعداد ${appliedCount.toLocaleString('fa-IR')} سطر ترجمه شده از سرور با موفقیت به فایل شما اضافه شد.`);
+    } catch (err: any) {
+      alert('خطا در ادغام ترجمه‌ها: ' + err.message);
+    } finally {
+      setIsApplyingBgResults(false);
+    }
+  };
+
+  const handleCancelBackgroundJob = async () => {
+    try {
+      await fetch('/api/background-job/cancel', { method: 'POST' });
+      await pollBackgroundStatus();
+    } catch {}
+  };
+
+  const handleClearBackgroundJob = async () => {
+    try {
+      await fetch('/api/background-job/clear', { method: 'POST' });
+      setBgJobStatus(null);
+    } catch {}
   };
 
   // Update translation for an entry
@@ -622,11 +858,22 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      {/* Background Server Job Banner (independent of browser window) */}
+      <BackgroundJobBanner
+        jobStatus={bgJobStatus}
+        onApplyResults={handleApplyBackgroundResults}
+        onCancelJob={handleCancelBackgroundJob}
+        onClearJob={handleClearBackgroundJob}
+        isApplyingResults={isApplyingBgResults}
+      />
+
       {/* Top Navbar */}
       <Header
-        fileName={poFile.fileName}
+        fileName={poFile.fileName || 'پروژه خالی'}
+        hasActiveFile={poFile.entries.length > 0}
         onFileUpload={handleFileUpload}
         onLoadSample={handleLoadSample}
+        onCloseFile={handleCloseFile}
         onOpenGlossaryModal={() => setIsGlossaryModalOpen(true)}
         onOpenHeaderModal={() => setIsHeaderModalOpen(true)}
         onDownloadPO={handleDownloadPO}
@@ -638,61 +885,88 @@ export default function App() {
         onQuickSyncSheet={handleQuickSyncSheet}
       />
 
-      {/* Interactive Verification Sandbox (admin for wordpress proof) */}
-      <TranslationPlayground
-        glossary={glossary}
-        engine={engine}
-        onBeforeTranslate={syncStatus.sheetUrl && syncStatus.sheetUrl.trim() ? handleSyncSheet : undefined}
-      />
-
-      {/* Stats and Filter Bar */}
-      <StatsBar
-        stats={stats}
-        pluralCount={pluralCount}
-        filter={filter}
-        onFilterChange={setFilter}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        selectedCount={selectedIds.size}
-      />
-
-      {/* Batch Actions Toolbar */}
-      <BatchToolbar
-        untranslatedCount={stats.untranslated}
-        selectedCount={selectedIds.size}
-        isTranslating={isTranslating}
-        isSyncingSheet={isSyncingSheet}
-        engine={engine}
-        onTranslateAllUntranslated={handleTranslateAllUntranslated}
-        onTranslateSelected={handleTranslateSelected}
-        onReapplyGlossaryToAll={handleReapplyGlossaryToAll}
-        onClearAllTranslations={handleClearAllTranslations}
-        onSelectAllVisible={handleSelectAllVisible}
-        onDeselectAll={handleDeselectAll}
-        isAllVisibleSelected={isAllVisibleSelected}
-        hasSheetUrl={Boolean(syncStatus.sheetUrl && syncStatus.sheetUrl.trim())}
-        onQuickSyncSheet={handleQuickSyncSheet}
-        lastSyncTime={syncStatus.lastSyncTime}
-        currentProgress={currentProgress}
-        onCancelTranslation={() => {
-          cancelTranslationRef.current = true;
-        }}
-      />
-
-      {/* Main PO Table */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-          <POEditorTable
-            entries={visibleEntries}
-            glossary={glossary}
-            selectedIds={selectedIds}
-            onToggleSelect={handleToggleSelect}
-            onUpdateTranslation={handleUpdateTranslation}
-            onTranslateRow={handleTranslateRow}
-            isTranslatingRowId={translatingRowId}
+      {/* Main Content Area: Empty State vs Active PO Project */}
+      {poFile.entries.length === 0 ? (
+        <main className="flex-1 flex items-center justify-center py-6">
+          <EmptyPOState
+            onFileUpload={handleFileUpload}
+            onCreateEmptyFile={handleCreateEmptyFile}
+            onLoadSample={handleLoadSample}
           />
-        </div>
-      </main>
+        </main>
+      ) : (
+        <>
+          {/* Interactive Verification Sandbox (Proof of word matching) */}
+          <TranslationPlayground
+            glossary={glossary}
+            engine={engine}
+            onBeforeTranslate={syncStatus.sheetUrl && syncStatus.sheetUrl.trim() ? handleSyncSheet : undefined}
+          />
+
+          {/* Sticky Stats and Filter/Search Bar */}
+          <StatsBar
+            stats={stats}
+            pluralCount={pluralCount}
+            filter={filter}
+            onFilterChange={setFilter}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            selectedCount={selectedIds.size}
+            matchedCount={visibleEntries.length}
+          />
+
+          {/* Batch Actions Toolbar */}
+          <BatchToolbar
+            untranslatedCount={stats.untranslated}
+            selectedCount={selectedIds.size}
+            isTranslating={isTranslating}
+            isSyncingSheet={isSyncingSheet}
+            engine={engine}
+            onTranslateAllUntranslated={handleTranslateAllUntranslated}
+            onTranslateSelected={handleTranslateSelected}
+            onReapplyGlossaryToAll={handleReapplyGlossaryToAll}
+            onClearAllTranslations={handleClearAllTranslations}
+            onSelectAllVisible={handleSelectAllVisible}
+            onDeselectAll={handleDeselectAll}
+            isAllVisibleSelected={isAllVisibleSelected}
+            hasSheetUrl={Boolean(syncStatus.sheetUrl && syncStatus.sheetUrl.trim())}
+            onQuickSyncSheet={handleQuickSyncSheet}
+            lastSyncTime={syncStatus.lastSyncTime}
+            onStartBackgroundTranslation={handleStartBackgroundJob}
+            isBackgroundRunning={bgJobStatus?.status === 'running'}
+            currentProgress={currentProgress}
+            onCancelTranslation={() => {
+              cancelTranslationRef.current = true;
+            }}
+          />
+
+          {/* Main PO Table */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+              <POEditorTable
+                entries={visibleEntries}
+                glossary={glossary}
+                selectedIds={selectedIds}
+                onToggleSelect={handleToggleSelect}
+                onUpdateTranslation={handleUpdateTranslation}
+                onTranslateRow={handleTranslateRow}
+                isTranslatingRowId={translatingRowId}
+              />
+            </div>
+          </main>
+        </>
+      )}
+
+      {/* Floating jump to top & focus search button on long scroll */}
+      {poFile.entries.length > 0 && (
+        <ScrollToTopSearch
+          onFocusSearch={() => {
+            const el = document.getElementById('search-strings-input') as HTMLInputElement | null;
+            el?.focus();
+            el?.select();
+          }}
+        />
+      )}
 
       {/* Modals */}
       <GlossaryModal

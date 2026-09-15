@@ -13,8 +13,10 @@ import { TranslationEngine } from '../types';
 
 interface HeaderProps {
   fileName: string;
+  hasActiveFile: boolean;
   onFileUpload: (file: File) => void;
   onLoadSample: () => void;
+  onCloseFile: () => void;
   onOpenGlossaryModal: () => void;
   onOpenHeaderModal: () => void;
   onDownloadPO: () => void;
@@ -28,8 +30,10 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   fileName,
+  hasActiveFile,
   onFileUpload,
   onLoadSample,
+  onCloseFile,
   onOpenGlossaryModal,
   onOpenHeaderModal,
   onDownloadPO,
@@ -168,16 +172,18 @@ export const Header: React.FC<HeaderProps> = ({
               <span>آپلود PO / MO</span>
             </button>
 
-            {/* Load Sample PO */}
-            <button
-              id="header-sample-btn"
-              type="button"
-              onClick={onLoadSample}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-medium transition-colors"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>نمونه وردپرس</span>
-            </button>
+            {/* Close file / New empty project */}
+            {hasActiveFile && (
+              <button
+                id="header-close-file-btn"
+                type="button"
+                onClick={onCloseFile}
+                title="بستن فایل فعلی و شروع پروژه جدید"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-slate-600 text-xs font-medium transition-colors"
+              >
+                <span>بستن فایل</span>
+              </button>
+            )}
 
             {/* Downloads */}
             <div className="flex items-center gap-1">
@@ -185,7 +191,8 @@ export const Header: React.FC<HeaderProps> = ({
                 id="header-download-po-btn"
                 type="button"
                 onClick={onDownloadPO}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors shadow-xs"
+                disabled={!hasActiveFile}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>دانلود PO</span>
@@ -195,8 +202,9 @@ export const Header: React.FC<HeaderProps> = ({
                 id="header-download-mo-btn"
                 type="button"
                 onClick={onDownloadMO}
+                disabled={!hasActiveFile}
                 title="دانلود فایل باینری کامپایل شده .MO مخصوص وردپرس"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>دانلود MO (باینری)</span>

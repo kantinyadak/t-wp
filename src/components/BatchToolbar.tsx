@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
+  Cloud,
 } from 'lucide-react';
 import { TranslationEngine } from '../types';
 
@@ -30,6 +31,9 @@ interface BatchToolbarProps {
   hasSheetUrl: boolean;
   onQuickSyncSheet: () => void;
   lastSyncTime?: number | null;
+  // Background Cloud Translation Props
+  onStartBackgroundTranslation?: () => void;
+  isBackgroundRunning?: boolean;
   // Progress
   currentProgress?: {
     total: number;
@@ -55,6 +59,8 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
   hasSheetUrl,
   onQuickSyncSheet,
   lastSyncTime,
+  onStartBackgroundTranslation,
+  isBackgroundRunning = false,
   currentProgress,
   onCancelTranslation,
 }) => {
@@ -93,12 +99,12 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
               )}
             </button>
 
-            {/* Translate Untranslated */}
+            {/* Translate Untranslated (Client) */}
             <button
               id="batch-translate-untranslated-btn"
               type="button"
               onClick={onTranslateAllUntranslated}
-              disabled={isTranslating || isSyncingSheet || untranslatedCount === 0}
+              disabled={isTranslating || isSyncingSheet || isBackgroundRunning || untranslatedCount === 0}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
             >
               {engine === 'gemini' ? (
@@ -107,9 +113,28 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
                 <Play className={`w-3.5 h-3.5 fill-current ${isTranslating ? 'animate-pulse' : ''}`} />
               )}
               <span>
-                ترجمه خودکار همه ({untranslatedCount.toLocaleString('fa-IR')} مورد)
+                ترجمه سریع ({untranslatedCount.toLocaleString('fa-IR')} مورد)
               </span>
             </button>
+
+            {/* Server Background Translation (Tab-independent) */}
+            {onStartBackgroundTranslation && (
+              <button
+                id="batch-start-background-job-btn"
+                type="button"
+                onClick={onStartBackgroundTranslation}
+                disabled={isTranslating || isBackgroundRunning || untranslatedCount === 0}
+                title="ارسال به سرور؛ حتی با بستن مرورگر یا قطع اینترنت ادامه می‌یابد"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+              >
+                <Cloud className={`w-3.5 h-3.5 text-indigo-300 ${isBackgroundRunning ? 'animate-pulse' : ''}`} />
+                <span>
+                  {isBackgroundRunning
+                    ? 'ترجمه پس‌زمینه فعال است...'
+                    : `ترجمه پس‌زمینه سرور (بدون نیاز به باز ماندن پنجره)`}
+                </span>
+              </button>
+            )}
 
             {/* Translate Selected */}
             {selectedCount > 0 && (
