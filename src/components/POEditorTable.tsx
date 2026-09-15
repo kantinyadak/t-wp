@@ -132,52 +132,84 @@ export const POEditorTable: React.FC<POEditorTableProps> = ({
 
                 {/* English Source & Matched Terms */}
                 <td className="py-3.5 px-4 align-top space-y-2">
-                  {/* Context and References */}
-                  {(entry.msgctxt || entry.references.length > 0) && (
-                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 mb-1">
-                      {entry.msgctxt && (
-                        <span className="inline-flex items-center gap-1 bg-slate-200/70 text-slate-700 px-1.5 py-0.5 rounded-sm font-mono text-[10px]">
-                          <Tag className="w-3 h-3" />
-                          <span>زمینه: {entry.msgctxt}</span>
-                        </span>
+                  {/* Context, References and Extracted Comments (Translators notes) */}
+                  {(entry.extractedComments?.length > 0 || entry.msgctxt || entry.references.length > 0) && (
+                    <div className="space-y-1.5 mb-2">
+                      {/* Developer / Translator notes (e.g. translators: %d: number of deals) */}
+                      {entry.extractedComments && entry.extractedComments.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                          {entry.extractedComments.map((comment, cIdx) => (
+                            <div
+                              key={cIdx}
+                              className="flex items-center gap-1.5 text-[11px] text-amber-900 bg-amber-50/90 border border-amber-200/80 rounded-md px-2.5 py-1"
+                              dir="ltr"
+                            >
+                              <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="font-mono">{comment}</span>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                      {entry.references.slice(0, 2).map((ref, idx) => (
-                        <span
-                          key={idx}
-                          className="font-mono text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-sm border border-slate-200/60"
-                          dir="ltr"
-                        >
-                          {ref}
-                        </span>
-                      ))}
+
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                        {entry.msgctxt && (
+                          <span className="inline-flex items-center gap-1 bg-slate-200/70 text-slate-700 px-1.5 py-0.5 rounded-sm font-mono text-[10px]">
+                            <Tag className="w-3 h-3" />
+                            <span>زمینه: {entry.msgctxt}</span>
+                          </span>
+                        )}
+                        {entry.references.slice(0, 2).map((ref, idx) => (
+                          <span
+                            key={idx}
+                            className="font-mono text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-sm border border-slate-200/60"
+                            dir="ltr"
+                          >
+                            {ref}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Main Singular Source */}
-                  <div
-                    className="p-2.5 rounded-lg bg-slate-100/90 border border-slate-200 font-mono text-xs text-slate-800 leading-relaxed break-words selection:bg-indigo-200"
-                    dir="ltr"
-                  >
-                    {entry.msgid === '' ? (
-                      <span className="text-slate-400 italic font-sans">[رشته خالی / سربرگ]</span>
-                    ) : (
-                      entry.msgid
-                    )}
-                  </div>
+                  {/* Source text (Singular + Plural) */}
+                  {hasPlural ? (
+                    <div className="space-y-2">
+                      {/* Singular Source */}
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs font-semibold text-slate-600 shrink-0 mt-2 min-w-[35px] text-right">
+                          مفرد:
+                        </span>
+                        <div
+                          className="flex-1 p-2.5 rounded-lg bg-slate-100/90 border border-slate-200 font-mono text-xs text-slate-800 leading-relaxed break-words selection:bg-indigo-200"
+                          dir="ltr"
+                        >
+                          {entry.msgid}
+                        </div>
+                      </div>
 
-                  {/* Plural Source if exists */}
-                  {hasPlural && (
-                    <div className="space-y-1">
-                      <div className="text-[11px] text-purple-700 font-semibold flex items-center gap-1">
-                        <Layers className="w-3 h-3" />
-                        <span>حالت جمع (msgid_plural):</span>
+                      {/* Plural Source */}
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs font-semibold text-purple-700 shrink-0 mt-2 min-w-[35px] text-right">
+                          جمع:
+                        </span>
+                        <div
+                          className="flex-1 p-2.5 rounded-lg bg-purple-50/70 border border-purple-200 font-mono text-xs text-purple-900 leading-relaxed break-words"
+                          dir="ltr"
+                        >
+                          {entry.msgid_plural}
+                        </div>
                       </div>
-                      <div
-                        className="p-2 rounded-md bg-purple-50/70 border border-purple-200 font-mono text-xs text-purple-900 leading-relaxed break-words"
-                        dir="ltr"
-                      >
-                        {entry.msgid_plural}
-                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="p-2.5 rounded-lg bg-slate-100/90 border border-slate-200 font-mono text-xs text-slate-800 leading-relaxed break-words selection:bg-indigo-200"
+                      dir="ltr"
+                    >
+                      {entry.msgid === '' ? (
+                        <span className="text-slate-400 italic font-sans">[رشته خالی / سربرگ]</span>
+                      ) : (
+                        entry.msgid
+                      )}
                     </div>
                   )}
 
